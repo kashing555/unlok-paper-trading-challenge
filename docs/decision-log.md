@@ -813,3 +813,22 @@ inconsistency.
 **`design.md` §12 was corrected to say mutex, not actor**, matching what was
 built and why. The doc was the bug, per the maintenance rule; the actor is
 recorded in §16 as the production change.
+
+## 2026-08-29 — README written
+
+Written last, from the code and this log, so it describes what exists rather
+than what was planned (`delivery.md`). Covers the five things the brief requires
+— architecture, key design decisions, P&L and ranking approach, assumptions and
+limitations, production changes — plus running instructions and the demo.
+
+**Every number in it was checked rather than recalled.** The test count (98) is
+from the suite; the ladder output quoted is diffed against an actual run; the
+money figures were re-derived by hand. One claim was corrected while
+proof-reading: the README asserted a Rust MSRV of 1.90 that was never tested, so
+it now says what was actually used.
+
+**The limitations section states omissions as decisions**, and the process
+section lists three places the implementation proved the design wrong — the cents
+money scale, the actor concurrency model, and the dependency cycle. Showing
+where a design was corrected is more useful to a reviewer than implying it was
+right first time.
