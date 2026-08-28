@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/domain"]
+members = ["crates/domain", "crates/broker"]
 
 [workspace.package]
 edition = "2021"
@@ -13,6 +13,10 @@ version = "0.1.0"
 # that a build-level fact instead of a convention someone has to remember.
 chrono = { version = "0.4", default-features = false, features = ["std"] }
 thiserror = "2"
+rand = { version = "0.9", default-features = false, features = ["std", "std_rng"] }
+rand_chacha = "0.9"
+domain = { path = "crates/domain" }
+broker = { path = "crates/broker" }
 proptest = "1"
 
 [workspace.lints.rust]

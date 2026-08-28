@@ -1,0 +1,16 @@
+[package]
+name = "broker"
+edition.workspace = true
+version.workspace = true
+
+[dependencies]
+domain = { workspace = true }
+thiserror = { workspace = true }
+# Seeded explicitly — `rand`'s thread_rng is never used here. A broker whose
+# executions cannot be reproduced makes every test downstream of it a
+# coin toss (.claude/principles.md §6).
+rand = { workspace = true }
+rand_chacha = { workspace = true }
+
+[lints]
+workspace = true

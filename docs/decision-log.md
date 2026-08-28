@@ -561,3 +561,29 @@ realized_pnl + unrealized_pnl`, whatever route the fills took. It catches almost
 any accounting slip in one assertion.
 
 **A2 is closed:** 49 tests, `clippy -D warnings` clean, `fmt` clean.
+
+## 2026-08-29 — Stage A3 landed
+
+**The RNG is owned and seeded; `thread_rng` appears nowhere.** Same seed, same
+executions, on every run and every machine — asserted directly, and asserted
+again in the negative (different seeds diverge) so the test cannot pass by the
+generator being ignored.
+
+**Partial fills always terminate and always sum exactly.** Each execution takes
+a seeded slice of what remains, and the `max_slices`-th one takes the rest, so
+an order cannot be left working forever. Checked across 25 seeds on a quantity
+that divides badly (997): the slices sum to 997 every time.
+
+**Broker limits are broker-side only.** Unknown symbol and size cap live here;
+**insufficient cash and insufficient position do not**, because the broker does
+not know what a participant holds. The engine that does know checks them before
+an order reaches the broker. Splitting rejections by who can actually see the
+reason keeps the port small.
+
+**Fees are basis points of notional, rounded down** — arbitrary, but *stated*.
+The alternative is a fee that depends on a rounding rule nobody wrote down.
+
+**No price improvement, no book, no queue position.** Fills are marketable-limit
+at the order's own price. Named as an omission so it reads as a decision, and
+because "the fill price is always the limit price" is a thing a reviewer will
+otherwise ask about.
