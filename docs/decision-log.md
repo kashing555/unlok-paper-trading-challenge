@@ -111,3 +111,48 @@ asked for: the service must stay complete and demonstrable with `ui/` deleted.
 priority · limit orders resting against a live market · multi-currency ·
 corporate actions · auth · rate limiting · horizontal scale. Each is stated in
 the README so it reads as a decision rather than a gap.
+
+## 2026-08-28 — structure
+
+**Structural rules extracted into `.claude/principles.md`.** They were implicit
+in `design.md`; making them a separate, citable file means a design change can be
+checked against them rather than argued about. Cites the real names — ports and
+adapters, functional core / imperative shell, single-writer, LMAX — because that
+is vocabulary the reviewer already has, and being able to say which parts we
+*declined* is the actual signal.
+
+**Enforcement is the workspace, not discipline.** `domain` and `scoring` are
+separate crates rather than modules specifically so that an inward-pointing
+dependency rule is a **compile error**: a crate cannot import what is not in its
+`Cargo.toml`. Chosen over one binary with module conventions, which relies on
+discipline, and discipline is what erodes on day two.
+
+**Coupling is checked, not felt.** Five runnable tests — deletion, swap, purity,
+parallel-work, explanation (`principles.md` §3). The deletion test is what backs
+the README's claim that the service is complete with `ui/` deleted; it is a
+property we can run rather than a promise.
+
+**SOLID applied selectively, and the declines are documented.** SRP and ISP hard;
+DIP only at real seams (`store`, `broker`); **OCP mostly declined** — extension
+points for imagined variation are `baseline.md` §2's speculative flexibility
+wearing a principle's name. The single exception is the ranking strategy, where
+the brief itself asks us to weigh alternatives, so a second implementation really
+exists. Also declined: DI framework, generic `Repository<T>`, interface-per-
+struct, mapper layers between identical structs.
+
+**Mechanical sympathy is explicitly out of scope** — named so it reads as a
+decision. A paper trading competition is not latency-bound; optimising cache
+lines here would be the same speculative-complexity error as OCP above. First
+thing to reach for if this ever became a real matching engine.
+
+**Build order: the engine before everything else** (`docs/build-order.md`).
+Stage A — money types, order lifecycle, position/P&L, mock broker, engine loop —
+completes and is fully tested with no HTTP, no database and no clock, and there
+is an explicit gate there. The argument is risk: if the schedule breaks at the
+gate, what exists is a tested trading engine with a written design, which is a
+defensible submission. The alternative ordering — scaffold the web service
+first — fails to a half-wired CRUD app with the scored content missing.
+
+**A1/A2 and B1/B2 are deliberately independent** so two people can work at once.
+That independence is the parallel-work test from `principles.md` §3 being cashed
+in, and it is the practical reason the dependency rule is worth enforcing at all.

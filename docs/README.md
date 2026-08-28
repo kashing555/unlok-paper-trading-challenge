@@ -12,10 +12,13 @@
 |---|---|
 | [design.md](design.md) | The whole design: event log as source of truth, money representation, order lifecycle, replace semantics, mock broker, P&L math, day close, crate layout, API, concurrency, storage, test plan, production delta |
 | [ranking.md](ranking.md) | **The scored decision** — daily leaderboard, tiebreak chain, overall ladder, inactive participants, determinism, worked example |
+| [build-order.md](build-order.md) | **Engine first** — the stages, the test that closes each, the gate after the engine, and what is parallelisable |
 
 Also outside `docs/`: [`.claude/challenge.md`](../.claude/challenge.md) — the
-brief verbatim and what it actually scores. Read it before proposing anything.
-The rest of `.claude/` holds the working agreements.
+brief verbatim and what it actually scores, read before proposing anything —
+and [`.claude/principles.md`](../.claude/principles.md), the structural rules
+(dependency table, coupling tests, trading-system principles) that the design
+here is an application of. The rest of `.claude/` holds the working agreements.
 
 ---
 
