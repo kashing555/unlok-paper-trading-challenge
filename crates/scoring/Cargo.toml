@@ -1,0 +1,15 @@
+[package]
+name = "scoring"
+edition.workspace = true
+version.workspace = true
+
+[dependencies]
+domain = { workspace = true }
+thiserror = { workspace = true }
+# Returns are the one genuinely fractional quantity in the system. Decimal, not
+# f64: two participants whose returns differ in the 15th place must compare
+# deterministically, and binary floating point cannot promise that.
+rust_decimal = { workspace = true }
+
+[lints]
+workspace = true

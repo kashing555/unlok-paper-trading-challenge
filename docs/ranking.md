@@ -136,22 +136,26 @@ test rather than a claim.
 
 ## 6. Worked example
 
-Three participants, all starting at $100,000. Day 1 marks move; day 2 is a down
-day where C stays in cash.
+Three participants, all starting at $100,000. A and B trade actively; C buys
+once on day 1 into a name whose mark then does not move, and holds.
 
 | | Start | D1 close | D1 ret | D1 turnover | D2 close | D2 ret |
 |---|---|---|---|---|---|---|
 | **A** | 100,000 | 102,000 | +2.00% | 480,000 | 99,960 | −2.00% |
 | **B** | 100,000 | 102,000 | +2.00% | 95,000 | 101,000 | −0.98% |
-| **C** | 100,000 | 100,000 | 0.00% | 0 | 100,000 | 0.00% |
+| **C** | 100,000 | 100,000 | 0.00% | 50,000 | 100,000 | 0.00% |
+
+C is **active on both days** — a fill on day 1, and a non-zero position held
+through day 2 — which is what makes the day-2 result below legitimate.
 
 **Day 1 leaderboard.** A and B tie at +2.00%; turnover breaks it — B reached the
 same return on $95k of trading against A's $480k.
 
 1. B (+2.00%, turnover 95,000) 2. A (+2.00%, turnover 480,000) 3. C (0.00%)
 
-**Day 2 leaderboard.** C is flat on a down day and wins it — correctly, having
-held a position on day 1, C is an active participant who chose to sit out.
+**Day 2 leaderboard.** C's book is unchanged on a down day and wins it —
+correctly: C is an active participant holding a real position that happened not
+to move, not an empty account riding out the market.
 
 1. C (0.00%) 2. B (−0.98%) 3. A (−2.00%)
 
@@ -166,8 +170,10 @@ held a position on day 1, C is an active participant who chose to sit out.
 Note A: up 2% then down 2% lands at **−0.04%**, not zero. That is the geometric
 argument in one row — an additive ladder would have reported A as flat.
 
-Had C never traded at all, C would instead be listed `eligible: false`,
-`rank: null`, and B and A would take ranks 1 and 2.
+Had C never traded at all — no fill on any day and no position ever held — C
+would instead be listed `eligible: false`, `rank: null`, and B and A would take
+ranks 1 and 2. That is the line: *choosing to be flat* is a strategy and ranks;
+*never having participated* is not, and does not.
 
 ## 7. Assumptions and limitations
 

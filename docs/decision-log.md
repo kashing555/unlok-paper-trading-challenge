@@ -635,3 +635,36 @@ here, this would still be a defensible submission.
 crate, so a lib's `cfg_attr(test, allow(...))` does not reach it and the
 workspace `unwrap_used` deny applies at full strength. Lifted explicitly at the
 top of the test file rather than by weakening the workspace lint.
+
+## 2026-08-29 — Stage B2 landed
+
+**The worked example in `ranking.md` §6 is now a test.** If the doc and the code
+disagree, the test fails — which is the reason for writing an example with
+numbers in it rather than prose.
+
+**A self-inconsistency in that example was found while writing the test and
+fixed.** Participant C was described as "having held a position on day 1" while
+the table gave C a day-1 turnover of **0** — so C could not have been active,
+and the day-2 narrative did not follow. Corrected: C buys once on day 1 into a
+name whose mark does not move, and holds through day 2, making C active on both
+days. The rule the example is there to illustrate is unchanged; the example now
+actually illustrates it. Caught only because the numbers had to be executed.
+
+**Returns are `Decimal`, never `f64`.** Two participants whose returns differ in
+the fifteenth place must compare deterministically, and binary floating point
+cannot promise that. Rounded to a fixed `RETURN_SCALE` of 10 places so the
+figure that is ranked is the same one that is reported, and so two runs cannot
+disagree in the last place.
+
+**The geometric argument is a single test:** −50% then +50% compounds to −25%,
+and the participant who did nothing ranks above it. An additive ladder would
+have reported that participant as flat.
+
+**Determinism is asserted, not claimed:** three different input orderings of a
+fully-tied day produce byte-identical leaderboards, because the sort ends in
+`participant_id` and no two participants can compare equal.
+
+**Ineligible participants sort last and take no placement number**, so placement
+numbers stay contiguous among those who actually competed. The test pins the
+uncomfortable case directly: a never-traded account's 0% beats an active
+participant's −5% on the day, and it still does not place.
