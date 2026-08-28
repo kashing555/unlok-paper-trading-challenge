@@ -83,6 +83,16 @@ fn every_event() -> Vec<Event> {
             symbol: sym("MSFT"),
             px: px("20.1234"),
         },
+        Event::DayClosed {
+            day: domain::TradingDay::parse("2026-08-29").unwrap(),
+            entries: vec![scoring::DayInput {
+                participant: who("alice"),
+                closing_value: money("100230"),
+                prior_closing_value: money("100000"),
+                turnover: money("2455.5"),
+                active: true,
+            }],
+        },
     ]
 }
 

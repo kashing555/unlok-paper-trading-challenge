@@ -6,7 +6,11 @@ version.workspace = true
 [dependencies]
 domain = { workspace = true }
 broker = { workspace = true }
+scoring = { workspace = true }
 thiserror = { workspace = true }
+
+[dev-dependencies]
+rust_decimal = { workspace = true }
 
 [lints]
 workspace = true

@@ -6,6 +6,7 @@ version.workspace = true
 [dependencies]
 domain = { workspace = true }
 engine = { workspace = true }
+scoring = { workspace = true }
 thiserror = { workspace = true }
 rusqlite = { workspace = true }
 serde = { workspace = true }

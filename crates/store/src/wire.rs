@@ -12,9 +12,10 @@
 
 use domain::{
     BrokerOrderId, ClientOrderId, DomainError, Money, Order, OrderState, ParticipantId, Px, Qty,
-    RejectReason, Side, Symbol, Timestamp,
+    RejectReason, Side, Symbol, Timestamp, TradingDay,
 };
 use engine::{Event, Journaled};
+use scoring::DayInput;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -56,6 +57,15 @@ pub(crate) enum WireState {
     Rejected {
         reason: WireReject,
     },
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub(crate) struct WireDayInput {
+    participant: String,
+    closing_value: i64,
+    prior_closing_value: i64,
+    turnover: i64,
+    active: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -105,6 +115,10 @@ pub(crate) enum WireEvent {
     MarkUpdated {
         symbol: String,
         px: i64,
+    },
+    DayClosed {
+        day: String,
+        entries: Vec<WireDayInput>,
     },
 }
 
@@ -216,7 +230,37 @@ impl From<&Event> for WireEvent {
                 symbol: symbol.to_string(),
                 px: px.raw(),
             },
+            Event::DayClosed { day, entries } => Self::DayClosed {
+                day: day.to_string(),
+                entries: entries.iter().map(Into::into).collect(),
+            },
         }
+    }
+}
+
+impl From<&DayInput> for WireDayInput {
+    fn from(d: &DayInput) -> Self {
+        Self {
+            participant: d.participant.to_string(),
+            closing_value: d.closing_value.raw(),
+            prior_closing_value: d.prior_closing_value.raw(),
+            turnover: d.turnover.raw(),
+            active: d.active,
+        }
+    }
+}
+
+impl TryFrom<WireDayInput> for DayInput {
+    type Error = DomainError;
+
+    fn try_from(d: WireDayInput) -> Result<Self, Self::Error> {
+        Ok(Self {
+            participant: ParticipantId::parse(&d.participant)?,
+            closing_value: Money::from_raw(d.closing_value),
+            prior_closing_value: Money::from_raw(d.prior_closing_value),
+            turnover: Money::from_raw(d.turnover),
+            active: d.active,
+        })
     }
 }
 
@@ -335,6 +379,13 @@ impl TryFrom<WireEvent> for Event {
             WireEvent::MarkUpdated { symbol, px } => Self::MarkUpdated {
                 symbol: Symbol::parse(&symbol)?,
                 px: Px::from_raw(px)?,
+            },
+            WireEvent::DayClosed { day, entries } => Self::DayClosed {
+                day: TradingDay::parse(&day)?,
+                entries: entries
+                    .into_iter()
+                    .map(TryInto::try_into)
+                    .collect::<Result<_, DomainError>>()?,
             },
         })
     }

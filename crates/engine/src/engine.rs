@@ -17,8 +17,10 @@ use std::collections::BTreeMap;
 use broker::{Broker, BrokerError};
 use domain::{
     lifecycle, ClientOrderId, DomainError, Fill, Marks, Money, NewOrder, Order, OrderEvent,
-    ParticipantId, Portfolio, PortfolioError, Px, Qty, Side, Symbol, Timestamp, TransitionError,
+    ParticipantId, Portfolio, PortfolioError, Px, Qty, Side, Symbol, Timestamp, TradingDay,
+    TransitionError,
 };
+use scoring::{ladder, leaderboard, DayInput, LadderRow, Leaderboard, ScoringError};
 use thiserror::Error;
 
 use crate::{Command, Event, Journaled};
@@ -50,6 +52,12 @@ pub enum EngineError {
     #[error("nothing to execute on order {0}")]
     NothingToExecute(ClientOrderId),
 
+    #[error("day {0} has not been closed")]
+    DayNotClosed(TradingDay),
+
+    #[error(transparent)]
+    Scoring(#[from] ScoringError),
+
     #[error(transparent)]
     Transition(#[from] TransitionError),
     #[error(transparent)]
@@ -66,6 +74,16 @@ pub struct Engine<B: Broker> {
     orders: BTreeMap<ClientOrderId, Order>,
     marks: Marks,
     seq: u64,
+    /// Gross notional traded since the last close, per participant. A
+    /// projection of the fills, reset by `DayClosed` — not a counter kept
+    /// alongside them.
+    day_turnover: BTreeMap<ParticipantId, Money>,
+    day_fills: BTreeMap<ParticipantId, u32>,
+    /// Last published closing value; the baseline the next day's return is
+    /// measured from. Absent means the participant has not closed a day yet,
+    /// and their starting cash is the baseline.
+    last_close: BTreeMap<ParticipantId, Money>,
+    closed: BTreeMap<TradingDay, Vec<DayInput>>,
 }
 
 impl<B: Broker> Engine<B> {
@@ -76,6 +94,10 @@ impl<B: Broker> Engine<B> {
             orders: BTreeMap::new(),
             marks: Marks::new(),
             seq: 0,
+            day_turnover: BTreeMap::new(),
+            day_fills: BTreeMap::new(),
+            last_close: BTreeMap::new(),
+            closed: BTreeMap::new(),
         }
     }
 
@@ -329,7 +351,50 @@ impl<B: Broker> Engine<B> {
             }
 
             Command::UpdateMark { symbol, px } => Ok(vec![Event::MarkUpdated { symbol, px }]),
+
+            Command::CloseDay { day } => {
+                // Idempotent: a published ranking that silently recomputes is
+                // worse than a stale one, so re-closing does nothing at all.
+                if self.closed.contains_key(&day) {
+                    return Ok(vec![]);
+                }
+                Ok(vec![Event::DayClosed {
+                    day,
+                    entries: self.day_entries()?,
+                }])
+            }
         }
+    }
+
+    /// The facts each participant closes the day on.
+    ///
+    /// **Fails closed** if any held symbol lacks a mark: `total_value`
+    /// propagates the error rather than valuing at zero, and a wrong closing
+    /// value corrupts a leaderboard that is then immutable.
+    fn day_entries(&self) -> Result<Vec<DayInput>, EngineError> {
+        let mut entries = Vec::with_capacity(self.participants.len());
+        for portfolio in self.participants.values() {
+            let id = portfolio.participant();
+            let closing_value = portfolio.total_value(&self.marks)?;
+            let fills = self.day_fills.get(id).copied().unwrap_or(0);
+
+            entries.push(DayInput {
+                participant: id.clone(),
+                closing_value,
+                // First day measures from what the participant was given.
+                prior_closing_value: self
+                    .last_close
+                    .get(id)
+                    .copied()
+                    .unwrap_or_else(|| portfolio.starting_cash()),
+                turnover: self.day_turnover.get(id).copied().unwrap_or(Money::ZERO),
+                // Active if they traded today, or still hold something. A
+                // participant who held at open and sold out has fills > 0, so
+                // both halves of "traded or was exposed" are covered.
+                active: fills > 0 || portfolio.positions().next().is_some(),
+            });
+        }
+        Ok(entries)
     }
 
     /// Check a fill against **both** the order's lifecycle and the book, and
@@ -421,13 +486,57 @@ impl<B: Broker> Engine<B> {
                     .get_mut(&participant)
                     .ok_or(EngineError::UnknownParticipant(participant.clone()))?
                     .apply(&fill)?;
+
+                // Turnover is gross notional, both sides — it measures how much
+                // trading was done, not what it netted to.
+                let notional = px.notional(*qty)?;
+                let running = self
+                    .day_turnover
+                    .entry(participant.clone())
+                    .or_insert(Money::ZERO);
+                *running = running.checked_add(notional)?;
+                *self.day_fills.entry(participant).or_insert(0) += 1;
             }
 
             Event::MarkUpdated { symbol, px } => {
                 self.marks.set(symbol.clone(), *px);
             }
+
+            Event::DayClosed { day, entries } => {
+                for entry in entries {
+                    self.last_close
+                        .insert(entry.participant.clone(), entry.closing_value);
+                }
+                self.closed.insert(*day, entries.clone());
+                // The day's counters belong to the day that just ended.
+                self.day_turnover.clear();
+                self.day_fills.clear();
+            }
         }
         Ok(())
+    }
+
+    /// The published leaderboard for a closed day, recomputed from the stored
+    /// facts. Errors rather than inventing one for a day that is still open.
+    pub fn leaderboard(&self, day: TradingDay) -> Result<Leaderboard, EngineError> {
+        let entries = self
+            .closed
+            .get(&day)
+            .ok_or(EngineError::DayNotClosed(day))?;
+        Ok(leaderboard(day, scoring::daily_results(entries.clone())?)?)
+    }
+
+    pub fn closed_days(&self) -> impl Iterator<Item = TradingDay> + '_ {
+        self.closed.keys().copied()
+    }
+
+    /// The overall ladder across every closed day, oldest first.
+    pub fn ladder(&self) -> Result<Vec<LadderRow>, EngineError> {
+        let boards: Vec<Leaderboard> = self
+            .closed_days()
+            .map(|d| self.leaderboard(d))
+            .collect::<Result<_, _>>()?;
+        Ok(ladder(&boards))
     }
 
     /// Rebuild state from a log. Never consults the broker — everything it

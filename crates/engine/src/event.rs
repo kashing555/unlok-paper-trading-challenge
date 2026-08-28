@@ -16,8 +16,9 @@
 
 use domain::{
     BrokerOrderId, ClientOrderId, Money, Order, ParticipantId, Px, Qty, RejectReason, Symbol,
-    Timestamp,
+    Timestamp, TradingDay,
 };
+use scoring::DayInput;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Event {
@@ -55,6 +56,19 @@ pub enum Event {
         symbol: Symbol,
         px: Px,
     },
+    /// A day's closing facts, per participant.
+    ///
+    /// The **facts** are stored, not the computed leaderboard: closing value,
+    /// prior close, turnover and activity are what happened, and they cannot
+    /// change. The ranking is recomputed from them on demand, which keeps the
+    /// event small and means a stored board can never drift from the facts it
+    /// was built on. The trade is that changing the ranking rules would change
+    /// historical boards — in production that needs a migration, and it is
+    /// listed as such in the README.
+    DayClosed {
+        day: TradingDay,
+        entries: Vec<DayInput>,
+    },
 }
 
 /// An event with its position in the log.
@@ -80,6 +94,7 @@ impl Event {
             Self::OrderCancelled { .. } => "order_cancelled",
             Self::OrderReplaced { .. } => "order_replaced",
             Self::MarkUpdated { .. } => "mark_updated",
+            Self::DayClosed { .. } => "day_closed",
         }
     }
 }

@@ -5,7 +5,7 @@
 //! [`crate::Engine::execute`] by the caller, because nothing in this system
 //! reads a clock (`.claude/principles.md` §6).
 
-use domain::{ClientOrderId, Money, ParticipantId, Px, Qty, Side, Symbol};
+use domain::{ClientOrderId, Money, ParticipantId, Px, Qty, Side, Symbol, TradingDay};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Command {
@@ -44,5 +44,11 @@ pub enum Command {
     UpdateMark {
         symbol: Symbol,
         px: Px,
+    },
+    /// Snapshot the day and publish its results. Idempotent: closing an
+    /// already-closed day produces no events and changes nothing, because a
+    /// published ranking that silently recomputes is worse than a stale one.
+    CloseDay {
+        day: TradingDay,
     },
 }

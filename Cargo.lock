@@ -172,6 +172,8 @@ version = "0.1.0"
 dependencies = [
  "broker",
  "domain",
+ "rust_decimal",
+ "scoring",
  "thiserror",
 ]
 
@@ -770,6 +772,7 @@ dependencies = [
  "domain",
  "engine",
  "rusqlite",
+ "scoring",
  "serde",
  "serde_json",
  "thiserror",

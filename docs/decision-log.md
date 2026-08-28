@@ -699,3 +699,46 @@ survive a refactor of the SQLite side (`rust.md`).
 **The replay guarantee now runs end-to-end through SQLite**, still with a
 different broker seed, and the sub-cent basis (400.2000) is asserted after the
 round trip through JSON.
+
+## 2026-08-29 — day close on the engine
+
+**A `DayClosed` event stores the day's *facts*, not the computed board.**
+Closing value, prior close, turnover and activity are what happened and cannot
+change; the leaderboard is recomputed from them on demand. This keeps the event
+small and means a stored board can never drift from the facts behind it. The
+trade, stated plainly: changing the ranking rules would change historical
+boards, so in production that needs a migration. Listed in the README's
+production delta.
+
+**Closing is idempotent at the command level** — a second close of the same day
+produces *no events at all*, so the sequence number does not even move. Tested
+by moving the mark to 50 after a close and asserting the published board is
+byte-identical and only the mark update was journalled.
+
+**Failing closed is now load-bearing rather than theoretical.** A day cannot be
+closed while any held symbol lacks a mark: `total_value` propagates the error up
+through `day_entries`, so the close is refused rather than publishing a book
+valued at zero.
+
+**Active is `fills today > 0 || holds a position now`.** Both halves of "traded,
+or was exposed" are covered without extra tracking: a participant who held at
+open and sold out has fills > 0, and one who held through has a position.
+
+**Turnover is gross notional on both sides**, reset by the close. It measures
+how much trading was done, not what it netted to — which is the point of using
+it as the tiebreak.
+
+**A test caught a wrong assumption of mine, and the system was right.** The
+turnover test assumed `rows[0]` was the participant who traded. On that day she
+sold *at the mark*, so her return was 0.00% — identical to the participant who
+did nothing — and the **turnover tiebreak correctly put the non-trader first**.
+The same result reached with less trading is the better result, which is exactly
+what `ranking.md` §2 says it should do. The assertion was fixed; the ranking was
+not.
+
+**`scripts/check.sh` added** after a commit went out with a clippy failure: the
+`| head` in the verification pipeline swallowed the exit code, and `cargo build`
+had reported the problem as a warning the grep skipped. The script uses
+`set -euo pipefail` and no pipes, so it cannot pass by accident. The commit was
+amended rather than fixed forward, because `delivery.md` says every commit is
+green and a broken one in history contradicts the file that says so.
