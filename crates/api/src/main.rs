@@ -5,7 +5,10 @@
 use std::sync::Arc;
 
 use api::{router, App, AppState};
+use std::collections::BTreeSet;
+
 use broker::{FeeSchedule, FillPolicy, Limits, MockBroker};
+use domain::{Qty, Symbol};
 use store::SqliteLog;
 use tokio::sync::Mutex;
 
@@ -17,12 +20,18 @@ struct Config {
     seed: u64,
     fee_bps: i64,
     max_slices: u32,
+    /// Comma-separated allowlist. Empty means every symbol is tradable.
+    symbols: BTreeSet<Symbol>,
+    max_order_qty: Option<Qty>,
 }
 
 impl Config {
-    fn from_env() -> Self {
+    /// Fallible: a mistyped `PTC_MAX_QTY` should be a clean message and a
+    /// non-zero exit, not a panic. The workspace denies `expect_used`, which is
+    /// what caught this — the lint earning its place.
+    fn from_env() -> Result<Self, Box<dyn std::error::Error>> {
         let var = |k: &str| std::env::var(k).ok();
-        Self {
+        Ok(Self {
             addr: var("PTC_ADDR").unwrap_or_else(|| "127.0.0.1:8080".into()),
             // ":memory:" keeps a run entirely ephemeral, which is what the
             // tests and the demo want.
@@ -32,13 +41,38 @@ impl Config {
             max_slices: var("PTC_MAX_SLICES")
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(3),
-        }
+            // Broker-side limits, off by default so a first run is
+            // frictionless — but configurable, **because REJECTED is one of the
+            // six states the brief requires**. Without a way to switch a limit
+            // on, the state could be exercised in the tests but never through
+            // the running service, which is not the same as supporting it.
+            symbols: match var("PTC_SYMBOLS") {
+                None => BTreeSet::new(),
+                Some(v) => v
+                    .split(',')
+                    .map(str::trim)
+                    .filter(|s| !s.is_empty())
+                    .map(Symbol::parse)
+                    .collect::<Result<BTreeSet<_>, _>>()
+                    .map_err(|e| format!("PTC_SYMBOLS: {e}"))?,
+            },
+            max_order_qty: match var("PTC_MAX_QTY") {
+                None => None,
+                Some(v) => Some(
+                    Qty::new(
+                        v.parse()
+                            .map_err(|_| format!("PTC_MAX_QTY: {v:?} is not an integer"))?,
+                    )
+                    .map_err(|e| format!("PTC_MAX_QTY: {e}"))?,
+                ),
+            },
+        })
     }
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let config = Config::from_env();
+    let config = Config::from_env()?;
 
     let log = if config.db == ":memory:" {
         SqliteLog::in_memory()?
@@ -54,7 +88,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         FeeSchedule {
             bps: config.fee_bps,
         },
-        Limits::default(),
+        Limits {
+            known_symbols: config.symbols.clone(),
+            max_order_qty: config.max_order_qty,
+        },
     );
 
     let state: AppState = Arc::new(Mutex::new(App::open(log, broker)?));
@@ -65,6 +102,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!(
         "  broker   seed={} fee={}bp slices<={}",
         config.seed, config.fee_bps, config.max_slices
+    );
+    println!(
+        "  limits   symbols={} maxQty={}",
+        if config.symbols.is_empty() {
+            "any".to_owned()
+        } else {
+            config
+                .symbols
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join(",")
+        },
+        config
+            .max_order_qty
+            .map_or("none".to_owned(), |q| q.to_string())
     );
 
     axum::serve(listener, router(state))

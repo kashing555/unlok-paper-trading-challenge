@@ -96,11 +96,11 @@ crates/
   domain/     value types, order lifecycle, position + P&L fold   PURE — no I/O
   broker/     mock broker: seeded, deterministic execution reports
   scoring/    daily results, leaderboard, ladder                  PURE — no I/O
+  engine/     command → decide → events → apply
   store/      SQLite append-only event log + projection replay
-  engine/     command → decide → events → apply, single-writer loop
-  api/        Axum HTTP, DTOs, the binary
-  cli/        thin driver over the same service layer
-ui/           Vue 3 cockpit — beyond the brief, Stage D
+  api/        App (engine + log + write-ahead), Axum HTTP and DTOs,
+              the `ptc` server and the `ptc-demo` CLI
+ui/           Vue 3 cockpit — beyond the brief
 docs/         design · ranking · build order · decision log
 .claude/      working agreements — this file's context
 ```
@@ -108,14 +108,17 @@ docs/         design · ranking · build order · decision log
 **Dependencies point inward, and it is a compile error when they do not** — a
 crate cannot import what is not in its `Cargo.toml`, which is the whole reason
 these are crates and not modules. Full table in `principles.md` §2. In one line:
-`domain` depends on nothing, `api` and `cli` depend on everything, and nothing
-depends on them.
+`domain` depends on nothing, `api` depends on everything, and nothing depends
+on `api`.
 
-Only what a stage has reached exists — the layout lands stage by stage, never
-scaffolded upfront. **Where the build actually is: the stage table in
-`README.md`**, which is the single place that tracks it. Do not restate progress
-here; two copies of one fact is the bug this repo is built to avoid, and docs are
-not exempt from it.
+`store` depends on `engine` — it persists `engine`'s event type — so `engine`
+cannot depend on `store`, and the assembly needing both (`App`) lives in `api`.
+The stricter shape, `EventLog` defined as a port *in* `engine`, is a production
+delta rather than a silent inconsistency.
+
+**Progress is not tracked here.** All stages are complete; `docs/build-order.md`
+records what each one closed on. Two copies of one fact is the bug this repo is
+built to avoid, and docs are not exempt from it.
 
 ## Context files
 
@@ -164,7 +167,7 @@ again.
 
 So the maintenance rules are rules, not aspirations:
 
-- **Close a stage → update the `README.md` stage table.** Not at the end.
+- **Land a change → update the doc that claims otherwise.** Not at the end.
 - **Change a decision → append to `docs/decision-log.md` *and* update the topical
   file.** The log is history and is never rewritten; the topical files are
   current truth.

@@ -869,3 +869,39 @@ scope the brief did not ask for; competition state changes at human speed.
 competition and the cockpit read back every figure — portfolios, the
 cancel-after-partial keeping its 40, the replace chain `#4 ← #3`, both
 leaderboards, and carol listed `never traded` with no rank.
+
+## 2026-08-29 — audit against the brief, and two real gaps closed
+
+Asked whether everything the brief wants is built, the honest answer needed
+checking rather than recalling. Every requirement was walked line by line. Two
+gaps were found.
+
+**`REJECTED` was unreachable through the running service.** The state is
+implemented, unit-tested and exercised in the full 6 × 4 matrix — but the server
+constructed the broker with `Limits::default()`, which has no symbol allowlist
+and no size cap, so **the broker could never actually reject anything.** A
+reviewer poking the API could exercise five of the six states the brief names.
+
+Supporting a state in the type system is not the same as supporting it in the
+product. Fixed by exposing the limits as `PTC_SYMBOLS` and `PTC_MAX_QTY`, and
+verified against the running binary: an off-allowlist symbol and an oversized
+order both come back `REJECTED`, an allowed order comes back `ACKNOWLEDGED`.
+
+**The README was 414 lines; the brief asks for a "short README" that "briefly
+explains".** Writing a comprehensive one where an explicit instruction said
+*short* is the same failure mode as gold-plating, and `challenge.md` records that
+scope discipline is itself scored. Cut to 247 lines: all five required sections
+present and brief, with the depth moved to `docs/design.md` and
+`docs/ranking.md` where it belongs and linked from the top. Nothing was lost —
+it moved to the layer that is allowed to be long.
+
+**A third, smaller find:** making the limits configurable tripped the workspace
+`expect_used` deny, because the config parsing used `expect`. That lint doing
+its job on the first careless line written after it was added. `Config::from_env`
+is now fallible: a mistyped `PTC_MAX_QTY` is a clean message and a non-zero exit,
+not a panic.
+
+**And the staleness rule caught itself.** `CLAUDE.md` still described a `cli/`
+crate that was folded into `api`, and pointed at a README stage table that the
+final README no longer has. Both corrected — the same failure the file warns
+about, found by running its own audit.
