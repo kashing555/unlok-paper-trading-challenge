@@ -329,3 +329,33 @@ missed-fill path.
 
 The tag numbers now sit in the doc comments, so the design is checkable against
 the protocol rather than taken on trust.
+
+## 2026-08-29 — where names come from
+
+**Raised in review: "how did we decide all this naming, where is it referenced
+from?" The gap was real** — the rule existed in my head and in one CUPID bullet,
+but was never written down, so every name read as a personal preference. Now in
+`code-style.md` with a full traceability table.
+
+**The rule: the brief's word wins; where the brief is silent, FIX; where both
+are silent, the standard pattern name.** Never invent a synonym for a term the
+brief already uses, never abbreviate one.
+
+Checked against the source: **`cash` is the brief's own word** ("cash balance",
+`challenge.md` line 21), as are participant, position, average position price,
+realized/unrealized P&L, total portfolio value, daily P&L, daily return
+percentage, closing portfolio value, daily leaderboard, overall competition
+ladder, and all six order states verbatim. `ClientOrderId`/`BrokerOrderId`/
+`replaces` are FIX tags 11/37/41; `Px` and `Qty` are FIX's own abbreviations
+(`LastPx` 31, `AvgPx` 6, `OrderQty` 38, `CumQty` 14, `LeavesQty` 151). `Money`
+is Fowler's Money pattern.
+
+**Two deviations, documented as deviations:** `Money` as the type where the brief
+says cash (cash is one *use* of it; a fee is not cash — so the type is `Money`
+and the field is `cash`), and `mark` for the valuation price where the brief says
+"market price" (the endpoint keeps the brief's word, `POST /market/prices`;
+the domain uses `mark` inside). Brief's language at the edge, domain language in
+the core.
+
+An undocumented deviation is indistinguishable from carelessness, which is the
+whole reason this entry exists.

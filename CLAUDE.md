@@ -80,8 +80,10 @@ layout, workspace lints.
 @.claude/approach.md — how to work here: the deliverable is the argument, the
 test is the proof, determinism over cleverness, no scope past the brief.
 
-@.claude/code-style.md — conventions: integer money, pure logic in tested
-functions, comments record why, total-order sorts, no floats in P&L.
+@.claude/code-style.md — conventions: **names trace to the brief first, FIX
+second, patterns last** (with the traceability table and the two documented
+deviations), integer money, pure logic in tested functions, comments record why,
+total-order sorts, no floats in P&L.
 
 @.claude/delivery.md — what is actually handed over: the git history is part of
 the submission, write nothing we cannot defend (the brief's own constraint), the
