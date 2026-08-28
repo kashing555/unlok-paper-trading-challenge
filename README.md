@@ -41,6 +41,14 @@ seeded broker and supplied timestamps, so the output is identical on every run:
 cargo run --bin ptc-demo
 ```
 
+**The cockpit** (optional, and beyond the brief — the service is complete
+without it):
+
+```bash
+cargo run --bin ptc                       # terminal 1
+cd ui && npm install && npm run dev       # terminal 2, then open :5173
+```
+
 **The server:**
 
 ```bash
@@ -104,6 +112,7 @@ crates/
   engine/    command -> decide -> events -> apply
   store/     SQLite append-only event log + replay
   api/       App (engine + log), Axum HTTP, `ptc` server, `ptc-demo` CLI
+ui/          Vue 3 cockpit — beyond the brief, see ui/README.md
 ```
 
 **Dependencies point inward, and it is a compile error when they do not** — a

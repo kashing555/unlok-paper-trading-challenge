@@ -832,3 +832,40 @@ section lists three places the implementation proved the design wrong — the ce
 money scale, the actor concurrency model, and the dependency cycle. Showing
 where a design was corrected is more useful to a reviewer than implying it was
 right first time.
+
+## 2026-08-29 — Stage D1: the cockpit
+
+Built **after** the scored work, per `delivery.md`'s cut order, and the deletion
+test still holds: nothing in `crates/` refers to `ui/`, so the service is
+complete with the directory removed.
+
+**A real bug, found by comparing the rendered page against the API.** The UI
+showed bob's cumulative return as `-0.0505%` where the CLI and the API both say
+`-0.0506%`. Cause: `Number(d) * 100` then `.toFixed(4)` — the binary double for
+`-0.0005055` lands just below the midpoint, so JS rounds down where
+`rust_decimal`'s `round_dp` rounds half away from zero. **The float mistake the
+entire backend is built to avoid, reappearing in the one layer that displays
+it.** Rewritten to shift the decimal point by moving digits and round with
+`BigInt`; checked against nine cases including the one that failed, and
+re-verified in the live browser.
+
+The lesson generalises past this repo: keeping money off floats in the service
+buys nothing if the client parses it back into one to render it. Money and
+returns now stay strings end to end and are formatted, never arithmetic'd.
+
+**No CORS layer.** The Vite dev server proxies `/api` to the Rust process, so
+the browser sees one origin. One less dependency in the part of the system being
+scored.
+
+**Nothing is derived client-side.** The store polls and displays; the ranking
+rules shown come from the API payload (`rankedBy`, `tiebreaks`, `eligibility`)
+rather than being restated in the frontend, so the two cannot drift. Same rule
+as the backend: one owner per fact.
+
+**Polling, not websockets.** The backend has no push channel and adding one is
+scope the brief did not ask for; competition state changes at human speed.
+
+**Verified running, not just building.** The API was seeded with a two-day
+competition and the cockpit read back every figure — portfolios, the
+cancel-after-partial keeping its 40, the replace chain `#4 ← #3`, both
+leaderboards, and carol listed `never traded` with no rank.
