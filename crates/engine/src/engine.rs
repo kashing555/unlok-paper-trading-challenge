@@ -228,28 +228,53 @@ impl<B: Broker> Engine<B> {
 
     // ---- execute ---------------------------------------------------------
 
-    /// Decide, journal, apply. The only entry point for change.
+    /// Decide, journal, apply. The convenience path, for callers with no log.
     pub fn execute(
         &mut self,
         at: Timestamp,
         command: Command,
     ) -> Result<Vec<Journaled>, EngineError> {
-        let events = self.decide(at, command)?;
+        let entries = self.plan(at, command)?;
+        self.commit(&entries)?;
+        Ok(entries)
+    }
 
-        let mut journaled = Vec::with_capacity(events.len());
+    /// Decide **without applying**: the events a command would produce.
+    ///
+    /// Split from [`Self::commit`] so a caller with a log can write ahead —
+    /// persist first, make visible second. Applying before persisting means a
+    /// crash in between leaves state the log cannot reproduce, which is exactly
+    /// the divergence the event log exists to prevent.
+    ///
+    /// A plan that is never committed leaves a gap in `seq`. Gaps are harmless:
+    /// the sequence is a total order, not a count, and a replay restores `seq`
+    /// from the last stored entry.
+    pub fn plan(&mut self, at: Timestamp, command: Command) -> Result<Vec<Journaled>, EngineError> {
+        let events = self.decide(at, command)?;
+        let mut entries = Vec::with_capacity(events.len());
         for event in events {
             self.seq += 1;
-            journaled.push(Journaled {
+            entries.push(Journaled {
                 seq: self.seq,
                 at,
                 event,
             });
         }
+        Ok(entries)
+    }
 
-        for entry in &journaled {
+    /// Apply already-decided events. The same path a replay takes.
+    pub fn commit(&mut self, entries: &[Journaled]) -> Result<(), EngineError> {
+        for entry in entries {
             self.apply(&entry.event)?;
         }
-        Ok(journaled)
+        Ok(())
+    }
+
+    /// One past the highest order id in use — where an id minter resumes after
+    /// a replay, so a restart cannot re-issue an id that is already resting.
+    pub fn next_order_id(&self) -> u64 {
+        self.orders.keys().map(|id| id.get()).max().unwrap_or(0) + 1
     }
 
     fn decide(&mut self, at: Timestamp, command: Command) -> Result<Vec<Event>, EngineError> {

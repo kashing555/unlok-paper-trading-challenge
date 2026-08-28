@@ -742,3 +742,47 @@ had reported the problem as a warning the grep skipped. The script uses
 `set -euo pipefail` and no pipes, so it cannot pass by accident. The commit was
 amended rather than fixed forward, because `delivery.md` says every commit is
 green and a broken one in history contradicts the file that says so.
+
+## 2026-08-29 — Stage C1 landed
+
+**The single writer is one mutex, not a channel-and-actor.** `design.md` §12
+proposed an actor; the mutex delivers the same property — a single total order
+over mutations — with a fraction of the machinery, and a competition's order
+volume is nowhere near one core. Building the actor anyway would be exactly the
+speculative complexity `principles.md` §7 declines. The design doc has been
+corrected to match the code, and the actor is listed as a production delta.
+
+**Events are durable before they are visible.** `Engine::execute` was split into
+`plan` (decide, journal, do **not** apply) and `commit` (apply), so `App` can
+write ahead: plan → persist → apply. Applying first would leave state the log
+cannot reproduce if the process died in between — the exact divergence the event
+log exists to prevent. A plan that is never committed leaves a gap in `seq`,
+which is harmless: the sequence is a total order, not a count.
+
+**Order ids are minted server-side and resumed from the log.** The client order
+id is *ours* (FIX `ClOrdID`) and a client cannot guarantee uniqueness. On
+startup the minter resumes past the highest id in the log, so a restart cannot
+re-issue an id that is already resting — tested by restarting against the same
+file and asserting the next id is higher.
+
+**Errors are RFC 7807 with a stable `type`, and the useful ones carry numbers.**
+An illegal transition returns `409` **naming the current state** — "it is
+already FILLED" is actionable where "that failed" is not. Insufficient cash
+returns what was needed and what was free. Both asserted.
+
+**Fail closed means never a wrong number, not never a response.** A portfolio
+read with a missing mark returns `200` with `totalValue: null` and a
+`valuationError` naming the symbol, while *closing a day* in the same state
+returns `409`. Valuing a book at zero is the failure worth preventing;
+refusing to answer at all is not.
+
+**Strict parsing survives to the edge.** `10.123456`, `aapl`, `BUY`, and half a
+manual execution (`qty` without `px`) are all `400`. The wire format carries
+money as **decimal strings**, never JSON numbers, and requests use
+`deny_unknown_fields` so a typo'd field is an error rather than a silent default.
+
+**Verified against the real binary, not only the router.** The release build was
+started on a port and driven with curl through the whole flow: the seeded broker
+filled a 100-share order as 69 → 30 → 1, the portfolio valued to 100200.0000,
+the day closed, and the ladder listed the participant who never traded as
+`rank: null, eligible: false`.

@@ -1,0 +1,28 @@
+[package]
+name = "api"
+edition.workspace = true
+version.workspace = true
+
+[[bin]]
+name = "ptc"
+path = "src/main.rs"
+
+[dependencies]
+domain = { workspace = true }
+engine = { workspace = true }
+broker = { workspace = true }
+store = { workspace = true }
+scoring = { workspace = true }
+axum = { workspace = true }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+rust_decimal = { workspace = true }
+
+[dev-dependencies]
+tower = { workspace = true }
+http-body-util = { workspace = true }
+
+[lints]
+workspace = true
