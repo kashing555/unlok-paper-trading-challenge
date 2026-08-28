@@ -43,6 +43,42 @@ it is wrong regardless of how well it reads.
    total-order sorts, replay that reproduces state exactly. Where the brief says
    "deterministic", we assert it in a test rather than claim it in prose.
 
+## Writing Rust here
+
+Rust took its type system from the ML family (*Meta Language* — sum types,
+exhaustive matching, `Option`/`Result` over null and exceptions), and this
+codebase uses it that way: **push the guarantee into the type and let the
+compiler maintain it**, rather than into a convention reviewers maintain.
+Detail and reasoning in `.claude/rust.md`. These are the non-negotiable ones.
+
+- **Make illegal states unrepresentable.** An enum whose variants carry exactly
+  their own data — not a struct of `Option`s where some combinations are
+  nonsense that no test will cover.
+- **Parse, don't validate.** Fallible constructors, private fields. An invalid
+  `Qty` or `Symbol` never exists, rather than existing and being checked
+  somewhere upstream, mostly.
+- **Exhaustive `match`, never a wildcard arm** in state-transition code. That is
+  the one place the compiler catches "a case was added and not handled", and a
+  `_ =>` silently switches it off.
+- **Newtypes carry units.** `Money + Px` must not compile. No float ever touches
+  a price, a balance or a P&L.
+- **Errors are values, and the kind matters.** A rejected order is a `Result` —
+  a normal outcome of a competition. A negative position is a **bug**: hard
+  error, never a warning. No `unwrap()` outside tests.
+- **Ownership, not shared mutability.** Reaching for `Rc<RefCell<_>>` or
+  `Arc<Mutex<_>>` to model an object graph is fighting the language. The
+  single-writer loop exists so that it is never needed.
+- **Data and functions, not objects with behaviour.** No getter/setter pairs, no
+  inheritance simulated through trait objects, no trait with a single impl and no
+  test double. This is not Java with a borrow checker — the patterns that assume
+  a mutable object graph are declined, and `rust.md` says which and why.
+- **`#![forbid(unsafe_code)]`** in every crate. There is no reason for `unsafe`
+  in this system, and stating it in the crate root makes that a compiler-checked
+  fact rather than a habit.
+
+Before saying done: `cargo fmt` · `cargo clippy --all-targets -- -D warnings` ·
+`cargo test`. Never report success on code that has not been compiled and run.
+
 ## How this is built
 
 **The engine first.** Order lifecycle, position/P&L accounting and the broker

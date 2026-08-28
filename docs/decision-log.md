@@ -391,3 +391,21 @@ spelling out before a reviewer trips on it —
 newtypes, parse-don't-validate, illegal-states-unrepresentable, exhaustive sum
 types, functional core. Rust took its type system from that tradition, which is
 why those transfer natively and the 2002 catalogue mostly does not.
+
+## 2026-08-29 — Rust rules promoted into CLAUDE.md
+
+The language-level rules were only in `rust.md`, one router hop away, while
+`CLAUDE.md` carried the architecture rules directly. Anything that must never be
+violated belongs where it is read first, so the eight non-negotiables are now in
+`CLAUDE.md`: illegal states unrepresentable, parse-don't-validate, exhaustive
+match with no wildcard arm, newtypes carrying units, errors-as-values with bug
+and expected-failure distinguished, ownership over shared mutability, data and
+functions rather than objects with behaviour, and `forbid(unsafe_code)`.
+
+The framing carries the conclusion from the pattern-lineage discussion: **this is
+not Java with a borrow checker.** Rust took sum types, exhaustive matching and
+`Option`/`Result` from the ML family, so the design uses them the way that
+tradition does — a state machine is an enum with a total transition function, not
+a class hierarchy with a mutable status field. Reaching for `Rc<RefCell<_>>` to
+model an object graph is the tell that an OOP shape is being forced, which is why
+it is named explicitly rather than left to taste.
