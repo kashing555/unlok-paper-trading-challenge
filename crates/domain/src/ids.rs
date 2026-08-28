@@ -23,10 +23,21 @@ pub struct Symbol(String);
 /// **Our** order id, minted the instant we decide to submit — before the broker
 /// has acked, which is what makes cancel-before-ack expressible at all
 /// (`docs/design.md` §4).
+///
+/// This is FIX `ClOrdID` (tag 11). The pairing with [`BrokerOrderId`] is not an
+/// invention: FIX carries both on every execution report, and a cancel/replace
+/// mints a *new* `ClOrdID` pointing at the old one via `OrigClOrdID` (tag 41) —
+/// which is exactly the `replaces` link in §5.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ClientOrderId(u64);
 
 /// The **broker's** order id, recorded once known. Absent until the ack lands.
+///
+/// FIX `OrderID` (tag 37). Two ids rather than one because there is a real
+/// window between submit and ack in which the order exists and the broker's id
+/// does not — and in that window it still has to be cancellable, loggable and
+/// correlatable. Keying the registry on this id instead would also drop any
+/// execution report that arrives before the ack is processed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BrokerOrderId(u64);
 

@@ -166,7 +166,7 @@ exists to eliminate:
 The practical move is almost always **convert connascence of meaning into
 connascence of type**. A function taking `(i64, i64)` where the first is cents
 and the second is a scaled price shares meaning with every caller and cannot be
-checked; taking `(Cash, Px)` shares only type, and the compiler checks it. That
+checked; taking `(Money, Px)` shares only type, and the compiler checks it. That
 one conversion is most of what the newtypes in §3 are for.
 
 ### Working on different things at once

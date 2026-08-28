@@ -18,5 +18,5 @@ mod time;
 
 pub use error::DomainError;
 pub use ids::{BrokerOrderId, ClientOrderId, ParticipantId, Symbol};
-pub use money::{Cash, Px, Qty, SCALE, SCALE_DIGITS};
+pub use money::{Money, Px, Qty, SCALE, SCALE_DIGITS};
 pub use time::{Timestamp, TradingDay};

@@ -56,7 +56,7 @@ matter and too late to reconstruct.
 
 | Quantity | Representation | Why |
 |---|---|---|
-| Cash, notional, P&L | `i64` at a shared scale of 1e4, in a `Cash` newtype | Exact. A float cent error compounds across a competition and cannot be reconciled afterwards |
+| Cash balance, notional, fee, P&L | `i64` at a shared scale of 1e4, in a `Money` newtype | Exact. A float cent error compounds across a competition and cannot be reconciled afterwards |
 | Price | `i64` at the **same** 1e4 scale, in a `Px` newtype | One shared scale means `notional = px.raw × qty` — an exact multiply with **no division and so no rounding** anywhere in the core. On a cents scale, `$10.0050 × 1` is 1000.5 cents and could only be stored by rounding, on every fill, silently |
 | Quantity | `i64` whole shares in a `Qty` newtype | Long-only equities; no fractional shares (assumption) |
 | Average cost | rational: `total_cost: i64` / `total_qty: i64` | Divided only for display. Storing a *rounded* average and re-multiplying drifts |

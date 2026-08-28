@@ -53,9 +53,9 @@ come from.
 Rules for our value types:
 
 - **No `Deref` to the inner integer.** It undoes the newtype in one line and
-  lets `Cash` be added to `Px`.
-- **`Copy` on the small ones** (`Qty`, `Px`, `Cash`, ids) — they are integers.
-- **Units live in the type.** `Cash + Px` must not compile. That is the point.
+  lets `Money` be added to `Px`.
+- **`Copy` on the small ones** (`Qty`, `Px`, `Money`, ids) — they are integers.
+- **Units live in the type.** `Money + Px` must not compile. That is the point.
 - **No `Default`** where a default is meaningless. `Qty::default() == 0` is a
   footgun waiting for a struct-update expression.
 

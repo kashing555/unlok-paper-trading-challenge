@@ -17,7 +17,7 @@ library plus one loop, and every test runs in-process in milliseconds.
 ### A0 · Workspace and money
 
 Cargo workspace with the crate skeleton from `design.md` §10, and the value
-types: `Cash`, `Px`, `Qty`, `Symbol`, `ParticipantId`, `ClientOrderId`,
+types: `Money`, `Px`, `Qty`, `Symbol`, `ParticipantId`, `ClientOrderId`,
 `BrokerOrderId`, `Timestamp`.
 
 **Closes when:** money arithmetic is exact under a property test (no

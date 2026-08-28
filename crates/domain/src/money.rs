@@ -22,11 +22,15 @@ pub const SCALE: i64 = 10_000;
 /// Number of decimal places implied by [`SCALE`].
 pub const SCALE_DIGITS: usize = 4;
 
-/// A signed amount of money — cash, notional, fee or P&L.
+/// A signed amount of money: a cash balance, a notional, a fee, or a P&L.
 ///
-/// Signed because P&L is, and because cash movements net in both directions.
+/// Named `Money`, not `Cash`, because *cash* is one **use** of this type — the
+/// participant's uninvested balance — not the type itself. A fee is not cash
+/// and an unrealized P&L certainly is not, but all three are money.
+///
+/// Signed because P&L is, and because balance movements net in both directions.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
-pub struct Cash(i64);
+pub struct Money(i64);
 
 /// A strictly positive price.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -40,10 +44,10 @@ pub struct Px(i64);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub struct Qty(i64);
 
-impl Cash {
+impl Money {
     pub const ZERO: Self = Self(0);
 
-    /// Construct from raw scaled units. Any `i64` is a valid `Cash`.
+    /// Construct from raw scaled units. Any `i64` is a valid `Money`.
     pub const fn from_raw(raw: i64) -> Self {
         Self(raw)
     }
@@ -104,11 +108,11 @@ impl Px {
     /// `price × quantity`, exact.
     ///
     /// Both sides share [`SCALE`] and `Qty` is unscaled, so the product is
-    /// already in `Cash` raw units — no division, so no rounding.
-    pub fn notional(self, qty: Qty) -> Result<Cash, DomainError> {
+    /// already in `Money` raw units — no division, so no rounding.
+    pub fn notional(self, qty: Qty) -> Result<Money, DomainError> {
         self.0
             .checked_mul(qty.0)
-            .map(Cash)
+            .map(Money)
             .ok_or(DomainError::Overflow("notional"))
     }
 }
@@ -237,7 +241,7 @@ fn format_fixed(raw: i64) -> String {
     )
 }
 
-impl fmt::Display for Cash {
+impl fmt::Display for Money {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(&format_fixed(self.0))
     }
@@ -262,14 +266,14 @@ mod tests {
 
     #[test]
     fn parses_and_renders_with_full_precision() {
-        assert_eq!(Cash::parse("0").unwrap().raw(), 0);
-        assert_eq!(Cash::parse("1").unwrap().raw(), 10_000);
-        assert_eq!(Cash::parse("1.5").unwrap().raw(), 15_000);
-        assert_eq!(Cash::parse("10.0050").unwrap().raw(), 100_050);
-        assert_eq!(Cash::parse("-2.25").unwrap().raw(), -22_500);
-        assert_eq!(Cash::from_raw(100_050).to_string(), "10.0050");
-        assert_eq!(Cash::from_raw(-22_500).to_string(), "-2.2500");
-        assert_eq!(Cash::ZERO.to_string(), "0.0000");
+        assert_eq!(Money::parse("0").unwrap().raw(), 0);
+        assert_eq!(Money::parse("1").unwrap().raw(), 10_000);
+        assert_eq!(Money::parse("1.5").unwrap().raw(), 15_000);
+        assert_eq!(Money::parse("10.0050").unwrap().raw(), 100_050);
+        assert_eq!(Money::parse("-2.25").unwrap().raw(), -22_500);
+        assert_eq!(Money::from_raw(100_050).to_string(), "10.0050");
+        assert_eq!(Money::from_raw(-22_500).to_string(), "-2.2500");
+        assert_eq!(Money::ZERO.to_string(), "0.0000");
     }
 
     #[test]
@@ -277,7 +281,7 @@ mod tests {
         // The Postel's-law rejection, made concrete: 1.23456 is not silently
         // 1.2345. A price we had to reinterpret is a position we did not mean.
         assert!(matches!(
-            Cash::parse("1.23456"),
+            Money::parse("1.23456"),
             Err(DomainError::TooManyDecimals { max: 4, .. })
         ));
     }
@@ -285,7 +289,7 @@ mod tests {
     #[test]
     fn rejects_ambiguous_input_rather_than_guessing() {
         for bad in ["", "   ", ".5", "1.", "1.2.3", "abc", "1 2", "1,5", "--1"] {
-            assert!(Cash::parse(bad).is_err(), "should have rejected {bad:?}");
+            assert!(Money::parse(bad).is_err(), "should have rejected {bad:?}");
         }
     }
 
@@ -311,7 +315,7 @@ mod tests {
         // could only be stored by rounding — on every fill, silently.
         let px = Px::parse("10.0050").unwrap();
         let notional = px.notional(Qty::new(3).unwrap()).unwrap();
-        assert_eq!(notional, Cash::parse("30.0150").unwrap());
+        assert_eq!(notional, Money::parse("30.0150").unwrap());
         assert_eq!(notional.to_string(), "30.0150");
     }
 
@@ -323,7 +327,7 @@ mod tests {
             Err(DomainError::Overflow("notional"))
         ));
         assert!(matches!(
-            Cash::from_raw(i64::MAX).checked_add(Cash::from_raw(1)),
+            Money::from_raw(i64::MAX).checked_add(Money::from_raw(1)),
             Err(DomainError::Overflow("cash addition"))
         ));
     }
@@ -341,14 +345,14 @@ mod tests {
     #[test]
     fn extreme_values_format_without_panicking() {
         // unsigned_abs, not abs: -i64::MIN does not fit in an i64.
-        assert!(Cash::from_raw(i64::MIN).to_string().starts_with('-'));
+        assert!(Money::from_raw(i64::MIN).to_string().starts_with('-'));
     }
 
     proptest! {
         #[test]
         fn display_then_parse_round_trips(raw in (i64::MIN / 2)..(i64::MAX / 2)) {
-            let cash = Cash::from_raw(raw);
-            prop_assert_eq!(Cash::parse(&cash.to_string()).unwrap(), cash);
+            let cash = Money::from_raw(raw);
+            prop_assert_eq!(Money::parse(&cash.to_string()).unwrap(), cash);
         }
 
         #[test]

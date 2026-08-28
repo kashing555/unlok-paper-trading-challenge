@@ -4,8 +4,8 @@ Extends `baseline.md` §3 — "match existing style" means the following here.
 
 ## Money and prices are integer minor units. Never float.
 
-Cash, prices, notionals and P&L are `i64` in minor units (cents) behind newtypes
-(`Cash`, `Px`, `Qty`), constructed at the edge and never unwrapped into `f64`
+Money, prices, notionals and P&L are `i64` in minor units (cents) behind newtypes
+(`Money`, `Px`, `Qty`), constructed at the edge and never unwrapped into `f64`
 inside a calculation. Serialise as a decimal string, not a JSON number — a
 float round-trip through JSON is how a cent goes missing.
 

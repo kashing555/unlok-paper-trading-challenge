@@ -300,3 +300,32 @@ now. This is the reject-don't-guess rule earning its place on day one — the
 input was ambiguous and the parser was quietly resolving it.
 
 **A0 is closed:** 18 tests, `clippy -D warnings` clean, `fmt` clean.
+
+## 2026-08-29 — naming corrections
+
+**`Cash` renamed to `Money`.** Raised in review and correct: the type was doing
+duty for a cash balance, a notional, a fee and a P&L, but only the first of
+those *is* cash. `Money` is the type; cash is one use of it — the participant's
+uninvested balance, which becomes a `cash: Money` field on the portfolio. A fee
+is not cash and an unrealized P&L certainly is not. Renamed now, while A0 is the
+only thing depending on it and the change costs one commit.
+
+**Two order ids kept, and the FIX mapping documented.** Also challenged in
+review — "trading systems just use an order id". They do not: FIX carries both
+`ClOrdID` (tag 11, assigned by us before sending) and `OrderID` (tag 37,
+assigned by the broker), and a cancel/replace mints a *new* `ClOrdID` pointing
+at the previous one through `OrigClOrdID` (tag 41), which is precisely the
+`replaces` link in `design.md` §5. The same split exists in sigma as
+`cloid`/`oid`.
+
+The justification is not theoretical here. Because executions are driven as a
+**separate operation** from submission (the brief lists "generate mock
+executions" as its own interface), an order genuinely sits in `NEW` with no
+broker id until the ack is generated. Cancelling in that window is a real,
+reachable, tested state — and it is only expressible with an id we minted
+ourselves. Keying the registry on the broker's id instead would also drop any
+execution report arriving before the ack is processed, which is the classic
+missed-fill path.
+
+The tag numbers now sit in the doc comments, so the design is checkable against
+the protocol rather than taken on trust.
