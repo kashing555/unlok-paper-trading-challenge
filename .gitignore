@@ -5,35 +5,19 @@
 *.pem
 *.key
 
-# Python
-__pycache__/
-*.py[cod]
-.venv/
-venv/
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-*.egg-info/
+# Rust
+target/
 
-# Node
+# Node / Vite — only relevant once ui/ lands (build-order Stage D)
 node_modules/
 dist/
-build/
-.next/
 *.log
-npm-debug.log*
-yarn-error.log*
 
-# Data / notebooks
+# Local data — the SQLite event log is generated, never committed
 *.sqlite
 *.db
-.ipynb_checkpoints/
 
 # Editors / OS
 .vscode/
 .idea/
 .DS_Store
-Thumbs.db
-
-# Rust
-target/

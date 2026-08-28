@@ -409,3 +409,28 @@ tradition does — a state machine is an enum with a total transition function, 
 a class hierarchy with a mutable status field. Reaching for `Rc<RefCell<_>>` to
 model an object graph is the tell that an OOP shape is being forced, which is why
 it is named explicitly rather than left to taste.
+
+## 2026-08-29 — housekeeping
+
+**Audit for stale and unrelated content, prompted by review.** No orphaned docs:
+every file in `.claude/` is routed from `CLAUDE.md` and every file in `docs/` is
+indexed in `docs/README.md`, both verified rather than assumed. Two real
+problems found, both self-inflicted:
+
+**`.gitignore` carried boilerplate for a stack we are not using** — Python
+(`__pycache__`, `.venv`, `.pytest_cache`, `.mypy_cache`, `.ruff_cache`,
+`*.egg-info`), Next.js (`.next/`) and Jupyter (`.ipynb_checkpoints/`), written
+in the first commit before the stack was chosen. Reduced to what is actually
+true: Rust `target/`, Node for the eventual `ui/`, the generated SQLite log,
+secrets and editor files. An ignore file listing tooling the project does not use
+is a small lie about what the project is, and it is the first file a reviewer
+skims.
+
+**`README.md` claimed "implementation not started"** while A0 was committed and
+green. The most-read file in the repo was the one saying something false. Now
+carries a stage table that tracks the build order, and is updated as stages
+close rather than at the end.
+
+**`Cargo.lock` is committed deliberately** — the workspace produces binaries
+(`api`, `cli`), and a reviewer should get the exact dependency versions the tests
+passed against.
