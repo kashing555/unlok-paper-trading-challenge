@@ -16,6 +16,8 @@ mod ids;
 mod lifecycle;
 mod money;
 mod order;
+mod portfolio;
+mod position;
 mod time;
 
 pub use error::DomainError;
@@ -23,4 +25,6 @@ pub use ids::{BrokerOrderId, ClientOrderId, ParticipantId, Symbol};
 pub use lifecycle::{OrderEvent, OrderState, RejectReason, TransitionError};
 pub use money::{Money, Px, Qty, SCALE, SCALE_DIGITS};
 pub use order::{NewOrder, Order, Replacement, Side};
+pub use portfolio::{Fill, Marks, Portfolio, PortfolioError};
+pub use position::{Position, PositionError, Realized};
 pub use time::{Timestamp, TradingDay};

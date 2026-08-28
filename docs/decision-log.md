@@ -511,3 +511,53 @@ participant never asked for — the error names the state so the caller can deci
 **A1 is closed:** 35 tests including the full 6 × 4 state/event matrix with a
 length assertion that stops a new pair escaping coverage. `clippy -D warnings`
 clean, `fmt` clean.
+
+## 2026-08-29 — Stage A2 landed
+
+**Average cost is never stored.** The position holds `qty` and `cost`, and the
+average is derived only for display. The walkthrough test shows why it matters:
+after buying 100 @ 10 and 100 @ 12 the average is 11.05, and **selling 50 leaves
+it at 11.05** — the sale removes basis and quantity in the same proportion. A
+stored, rounded average would have drifted at that step and again at every one
+after it.
+
+**Unrealized is computed as `qty × mark − cost`, not `qty × (mark − avg)`.**
+Algebraically identical; the second form needs the average and therefore a
+division, while the first is exact. Choosing the exact form is free.
+
+**Partial sales truncate the basis they remove, and the residue cannot
+accumulate.** `cost_removed = cost × sold / held`, widened to `i128` so the
+multiply cannot overflow before the divide. The final sale of a position has
+`sold == held`, so that division is exact and takes the whole remaining basis
+with it. Tested on a basis that does not divide evenly (31.0000 over 3 shares):
+the intermediate sale leaves 20.6667, and the close leaves **exactly zero**. A
+`debug_assert!` guards the invariant in case that ever stops being true.
+
+**Fees are capitalised into the basis on buy and expensed on sell.** One
+convention, both sides, so a round trip does not leak a fee into unrealized P&L.
+Visible in the tests: buying 100 @ 10 with a 5.00 fee gives a basis of 1005 and
+an unrealized of −5.00 at a mark of 10, not zero.
+
+**Rejected fills leave the book untouched.** Both the insufficient-cash and
+insufficient-position paths validate *before* mutating, and both are asserted
+against a full clone of the portfolio. A half-applied fill would be a position
+that disagrees with the cash that paid for it — the divergence the whole design
+exists to prevent.
+
+**Insufficient cash is an error, not a negative balance.** It is reachable only
+if a pre-trade check upstream failed, which makes it a bug, and bugs in an
+accounting path fail loud (`principles.md` §6).
+
+**Missing marks fail closed.** A held symbol with no price errors rather than
+valuing at zero — a wrong portfolio value corrupts a leaderboard that is then
+immutable. A flat book needs no marks at all, which the tests pin.
+
+**Positions live in a `BTreeMap`.** Iteration order is a property of the symbols
+rather than of a hash seed, which is one of the places determinism would
+otherwise leak away silently. Asserted directly.
+
+**The invariant test worth keeping:** `total_value == starting_cash +
+realized_pnl + unrealized_pnl`, whatever route the fills took. It catches almost
+any accounting slip in one assertion.
+
+**A2 is closed:** 49 tests, `clippy -D warnings` clean, `fmt` clean.

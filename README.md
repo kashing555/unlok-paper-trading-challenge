@@ -14,8 +14,8 @@ Rust workspace (Axum HTTP) + Vue 3 cockpit. Long-only equities.
 > |---|---|---|
 > | **A0** value vocabulary — money, ids, trading day | `crates/domain` | ✅ done |
 > | **A1** order lifecycle state machine | `crates/domain` | ✅ done |
-> | **A2** position and P&L | | next |
-> | **A3** mock broker · **A4** engine loop | | |
+> | **A2** position and P&L | `crates/domain` | ✅ done |
+> | **A3** mock broker · **A4** engine loop | | next |
 > | B store · scoring — C API · CLI — D cockpit | | |
 
 ## Documentation
