@@ -13,7 +13,7 @@
 
 mod error;
 mod ids;
-mod lifecycle;
+pub mod lifecycle;
 mod money;
 mod order;
 mod portfolio;

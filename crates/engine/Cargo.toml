@@ -1,0 +1,12 @@
+[package]
+name = "engine"
+edition.workspace = true
+version.workspace = true
+
+[dependencies]
+domain = { workspace = true }
+broker = { workspace = true }
+thiserror = { workspace = true }
+
+[lints]
+workspace = true

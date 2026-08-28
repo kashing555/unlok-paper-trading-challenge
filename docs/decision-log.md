@@ -587,3 +587,51 @@ The alternative is a fee that depends on a rounding rule nobody wrote down.
 at the order's own price. Named as an omission so it reads as a decision, and
 because "the fill price is always the limit price" is a thing a reviewer will
 otherwise ask about.
+
+## 2026-08-29 — Stage A4 landed; the gate is passed
+
+**`apply` is the only mutator, and replay uses the same path.** Anything
+`decide` learns that is not written into an event would be lost on replay, so
+broker outputs — the minted broker id, the chosen fill size — go **into the
+event** rather than being applied directly. This makes "rebuild from the log and
+get the same state" true by construction.
+
+**Verified, not asserted: replay never consults the broker.** The replay test
+rebuilds with a broker on a *different seed* and asserts the resulting snapshot
+is identical to the live engine's, field for field, across portfolios, positions
+and every order. If replay touched the broker at all, that test would diverge.
+
+**Commands validate fully before anything mutates.** A fill is checked against
+*both* the order's lifecycle and the book — the latter against a **clone of the
+portfolio** — before an event is emitted. Cloning one portfolio is cheap, and it
+is the difference between "the command was refused" and "the order advanced but
+the cash did not". Asserted by taking a full snapshot before five different
+refused commands and requiring it unchanged after each.
+
+**Pre-trade reservations are derived, never cached.** Available cash is the
+balance minus the notional of *working buy orders*, recomputed from those orders
+every time. A reserved-cash counter kept alongside them would be a second copy
+of a fact the orders already hold, and the two would eventually disagree — the
+§1 bug. The test that pins it: with 1000 cash, one working order for 600 makes a
+second 600 order refused *at submit*, rather than passing and failing deep in
+the book at fill time, which is far too late.
+
+**A replace releases the reservation it is about to cancel.** Otherwise
+replacing an order that commits the whole balance would be refused for lack of
+cash the command itself is freeing. Handled by excluding the original from the
+reservation sum, and tested at exactly 100% committed.
+
+**Account-side rejections live in the engine, broker-side in the broker.** The
+engine knows cash and positions; the broker does not. Checking before the broker
+sees the order also means the reject reason is the true one.
+
+**The gate is passed.** Every flow the brief lists under *Testing* is covered
+with no server, no database, no clock and no sleeping: submission and
+acknowledgement, partial and complete fills, cancellation and replacement,
+position and P&L updates. 66 tests across four crates. If the schedule broke
+here, this would still be a defensible submission.
+
+**A clippy finding worth recording:** an integration test in `tests/` is its own
+crate, so a lib's `cfg_attr(test, allow(...))` does not reach it and the
+workspace `unwrap_used` deny applies at full strength. Lifted explicitly at the
+top of the test file rather than by weakening the workspace lint.

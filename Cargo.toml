@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/domain", "crates/broker"]
+members = ["crates/domain", "crates/broker", "crates/engine"]
 
 [workspace.package]
 edition = "2021"
@@ -17,6 +17,7 @@ rand = { version = "0.9", default-features = false, features = ["std", "std_rng"
 rand_chacha = "0.9"
 domain = { path = "crates/domain" }
 broker = { path = "crates/broker" }
+engine = { path = "crates/engine" }
 proptest = "1"
 
 [workspace.lints.rust]
