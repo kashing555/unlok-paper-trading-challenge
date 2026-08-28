@@ -89,6 +89,34 @@ already been broken and that is the bug to fix.
 
 Stages, gates, and what is parallelisable: `docs/build-order.md`.
 
+## The repository
+
+```
+crates/
+  domain/     value types, order lifecycle, position + P&L fold   PURE — no I/O
+  broker/     mock broker: seeded, deterministic execution reports
+  scoring/    daily results, leaderboard, ladder                  PURE — no I/O
+  store/      SQLite append-only event log + projection replay
+  engine/     command → decide → events → apply, single-writer loop
+  api/        Axum HTTP, DTOs, the binary
+  cli/        thin driver over the same service layer
+ui/           Vue 3 cockpit — beyond the brief, Stage D
+docs/         design · ranking · build order · decision log
+.claude/      working agreements — this file's context
+```
+
+**Dependencies point inward, and it is a compile error when they do not** — a
+crate cannot import what is not in its `Cargo.toml`, which is the whole reason
+these are crates and not modules. Full table in `principles.md` §2. In one line:
+`domain` depends on nothing, `api` and `cli` depend on everything, and nothing
+depends on them.
+
+Only what a stage has reached exists — the layout lands stage by stage, never
+scaffolded upfront. **Where the build actually is: the stage table in
+`README.md`**, which is the single place that tracks it. Do not restate progress
+here; two copies of one fact is the bug this repo is built to avoid, and docs are
+not exempt from it.
+
 ## Context files
 
 @.claude/baseline.md — general coding behavior: think before coding, simplicity,
@@ -125,6 +153,29 @@ total-order sorts, no floats in P&L.
 the submission, write nothing we cannot defend (the brief's own constraint), the
 fixed order for cutting scope under time pressure, and why the README is written
 last.
+
+## Keeping this honest
+
+The failure this repo has actually hit is not a bad decision — it is a file that
+was **correct when written and never revisited**: a `.gitignore` listing Python
+tooling for a Rust project, a README claiming implementation had not started
+while it was committed and green. Both were true once. Neither was reviewed
+again.
+
+So the maintenance rules are rules, not aspirations:
+
+- **Close a stage → update the `README.md` stage table.** Not at the end.
+- **Change a decision → append to `docs/decision-log.md` *and* update the topical
+  file.** The log is history and is never rewritten; the topical files are
+  current truth.
+- **A doc that disagrees with the code is the bug**, not the code.
+- **At each gate in `build-order.md`, re-audit for staleness** — orphaned docs,
+  ignore rules for tooling we do not use, claims that were accurate last week.
+  Check it, do not assume it: every `.claude/` file should be routed from this
+  one and every `docs/` file indexed in `docs/README.md`.
+
+A reviewer reads the repository as evidence of how we work. A stale file is
+read as carelessness, and it is not wrong to read it that way.
 
 ## Precedence
 

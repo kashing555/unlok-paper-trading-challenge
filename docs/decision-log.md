@@ -434,3 +434,33 @@ close rather than at the end.
 **`Cargo.lock` is committed deliberately** — the workspace produces binaries
 (`api`, `cli`), and a reviewer should get the exact dependency versions the tests
 passed against.
+
+## 2026-08-29 — CLAUDE.md describes the repository, not only the principles
+
+Raised in review: does `CLAUDE.md` actually reflect how we want the repository to
+be? It did not. It carried the persona, the architectural rules, the Rust rules
+and the build order — but never said **what the repository is**, and had no rule
+preventing the staleness found in the audit an hour earlier.
+
+**Added: the crate layout**, with the one-line statement of the dependency
+direction (`domain` depends on nothing, `api`/`cli` depend on everything, nothing
+depends on them) and the note that it is a *compile error* when violated. Also
+states that the layout lands stage by stage and is never scaffolded upfront —
+empty crates waiting to be filled are speculative structure, which `principles.md`
+§7 declines.
+
+**Deliberately not restated: build progress.** `CLAUDE.md` points at the stage
+table in `README.md` as the single place tracking it. Two copies of one fact is
+the bug this system is designed around, and documentation is not exempt — the
+README went stale precisely because progress lived in more than one head.
+
+**Added: maintenance as rules rather than aspirations.** Close a stage → update
+the stage table. Change a decision → append to the log *and* update the topical
+file. A doc disagreeing with the code is the bug. **Re-audit for staleness at
+each build-order gate**, checking rather than assuming that every `.claude/` file
+is routed and every `docs/` file indexed.
+
+The framing is what the audit taught: the failure mode here is not a bad
+decision, it is a file that was correct when written and never revisited. A
+reviewer reads the repository as evidence of how we work, and reads a stale file
+as carelessness — not wrongly.
