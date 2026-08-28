@@ -46,6 +46,12 @@ impl AppError {
             Self::Engine(E::UnknownOrder(_)) => (StatusCode::NOT_FOUND, "unknown-order", None),
             Self::Engine(E::DayNotClosed(_)) => (StatusCode::NOT_FOUND, "day-not-closed", None),
 
+            Self::Engine(E::DayOutOfOrder { day, latest }) => (
+                StatusCode::CONFLICT,
+                "day-out-of-order",
+                Some(json!({ "day": day.to_string(), "latestClosed": latest.to_string() })),
+            ),
+
             Self::Engine(E::DuplicateParticipant(_)) => {
                 (StatusCode::CONFLICT, "duplicate-participant", None)
             }

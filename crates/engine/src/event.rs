@@ -10,12 +10,14 @@
 //! advances its RNG, and reproduces exactly what happened rather than what
 //! would happen if it ran again.
 //!
-//! **Events are self-contained enough to rebuild from.** `OrderSubmitted`
-//! carries the whole order, so a replay does not need any state that a previous
-//! event did not already establish.
+//! **Events carry submission terms, not order state.** An order is always
+//! `NEW` at the moment it is submitted, so recording its state would be storing
+//! a constant — and a redundant field is a field that can disagree. The
+//! lifecycle is derived by folding the later events, which is the same rule as
+//! positions and P&L: keep the facts, derive the rest.
 
 use domain::{
-    BrokerOrderId, ClientOrderId, Money, Order, ParticipantId, Px, Qty, RejectReason, Symbol,
+    BrokerOrderId, ClientOrderId, Money, NewOrder, ParticipantId, Px, Qty, RejectReason, Symbol,
     Timestamp, TradingDay,
 };
 use scoring::DayInput;
@@ -27,7 +29,7 @@ pub enum Event {
         starting_cash: Money,
     },
     OrderSubmitted {
-        order: Box<Order>,
+        order: NewOrder,
     },
     OrderAcknowledged {
         id: ClientOrderId,
@@ -50,7 +52,7 @@ pub enum Event {
     /// so a reader cannot see half of a cancel-replace.
     OrderReplaced {
         original: ClientOrderId,
-        replacement: Box<Order>,
+        replacement: NewOrder,
     },
     MarkUpdated {
         symbol: Symbol,

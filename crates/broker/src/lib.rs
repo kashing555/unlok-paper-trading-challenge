@@ -65,8 +65,10 @@ impl FeeSchedule {
 pub enum FillPolicy {
     /// One execution for the whole remaining quantity.
     Complete,
-    /// Seeded partials: each execution takes a random slice of what is left,
-    /// completing the order on the `max_slices`-th one so it always terminates.
+    /// Seeded partials: each execution takes a random slice of at least
+    /// `1/max_slices` of the order's original quantity, so **any one order**
+    /// completes in at most `max_slices` executions. Stateless — the bound
+    /// comes from the order, so two orders worked at once cannot interfere.
     Partial { max_slices: u32 },
 }
 
@@ -112,7 +114,6 @@ pub struct MockBroker {
     policy: FillPolicy,
     fees: FeeSchedule,
     limits: Limits,
-    slices_done: u32,
 }
 
 impl MockBroker {
@@ -123,7 +124,6 @@ impl MockBroker {
             policy,
             fees,
             limits,
-            slices_done: 0,
         }
     }
 
@@ -168,14 +168,20 @@ impl Broker for MockBroker {
         let qty = match self.policy {
             FillPolicy::Complete => remaining,
             FillPolicy::Partial { max_slices } => {
-                self.slices_done += 1;
-                if self.slices_done >= max_slices || remaining.get() == 1 {
-                    // Always terminates: the last permitted slice takes the
-                    // rest, so an order cannot be left working forever.
-                    self.slices_done = 0;
+                // Every execution takes at least 1/max_slices of the order's
+                // **original** quantity, so it completes in at most
+                // `max_slices` executions — a bound derived from the order
+                // itself rather than from a counter on the broker.
+                //
+                // A counter here was a bug: it was shared across every order
+                // the broker was working, so interleaving two orders let one
+                // spend the other's budget and complete in a single fill.
+                let slices = i64::from(max_slices.max(1));
+                let chunk = (order.qty.get() + slices - 1) / slices; // ceil; both positive
+                if remaining.get() <= chunk {
                     remaining
                 } else {
-                    Qty::new(self.rng.random_range(1..=remaining.get()))?
+                    Qty::new(self.rng.random_range(chunk..=remaining.get()))?
                 }
             }
         };
@@ -360,5 +366,100 @@ mod tests {
         let mut o = acked(10, &mut broker);
         o.apply(&OrderEvent::Cancelled).unwrap();
         assert_eq!(broker.next_execution(&o), Err(BrokerError::NotWorking));
+    }
+}
+
+#[cfg(test)]
+mod slicing_tests {
+    use super::*;
+    use domain::{ClientOrderId, NewOrder, ParticipantId, Side, Timestamp};
+
+    fn working(id: u64, qty: i64, broker: &mut MockBroker) -> Order {
+        let mut o = Order::submit(NewOrder {
+            id: ClientOrderId::new(id),
+            participant: ParticipantId::parse("alice").unwrap(),
+            symbol: Symbol::parse("AAPL").unwrap(),
+            side: Side::Buy,
+            qty: Qty::new(qty).unwrap(),
+            limit_px: Px::parse("10").unwrap(),
+            at: Timestamp::from_millis(0),
+        })
+        .unwrap();
+        let ack = broker.on_submit(&o);
+        o.apply(&ack).unwrap();
+        o
+    }
+
+    /// Two orders worked at the same time must not share a slice budget.
+    ///
+    /// The policy is documented as "at most `max_slices` executions **per
+    /// order**". A counter living on the broker instead of the order makes it
+    /// "per broker", so interleaving two orders lets one exhaust the other's
+    /// budget and complete in a single fill.
+    #[test]
+    fn interleaved_orders_do_not_share_a_slice_budget() {
+        let mut broker = MockBroker::new(
+            7,
+            FillPolicy::Partial { max_slices: 3 },
+            FeeSchedule::FREE,
+            Limits::default(),
+        );
+
+        let mut a = working(1, 1000, &mut broker);
+        let mut b = working(2, 1000, &mut broker);
+
+        // Work A twice, then start B. B is on its *first* execution and must
+        // still be sliced, not completed outright.
+        for _ in 0..2 {
+            let e = broker.next_execution(&a).unwrap().unwrap();
+            a.apply(&OrderEvent::Fill {
+                qty: e.qty,
+                px: e.px,
+            })
+            .unwrap();
+        }
+
+        let first_b = broker.next_execution(&b).unwrap().unwrap();
+        b.apply(&OrderEvent::Fill {
+            qty: first_b.qty,
+            px: first_b.px,
+        })
+        .unwrap();
+
+        assert!(
+            !b.state.is_terminal(),
+            "B completed on its first execution because A had spent the budget"
+        );
+    }
+
+    /// The bound the policy promises, checked per order across many seeds.
+    #[test]
+    fn an_order_never_takes_more_than_max_slices_executions() {
+        for seed in 0..40 {
+            for max_slices in 1..=5 {
+                let mut broker = MockBroker::new(
+                    seed,
+                    FillPolicy::Partial { max_slices },
+                    FeeSchedule::FREE,
+                    Limits::default(),
+                );
+                let mut o = working(1, 997, &mut broker);
+                let mut fills = 0;
+                while !o.state.is_terminal() {
+                    let e = broker.next_execution(&o).unwrap().unwrap();
+                    o.apply(&OrderEvent::Fill {
+                        qty: e.qty,
+                        px: e.px,
+                    })
+                    .unwrap();
+                    fills += 1;
+                    assert!(
+                        fills <= max_slices,
+                        "seed {seed} max {max_slices}: {fills} fills"
+                    );
+                }
+                assert_eq!(o.state.filled(), Qty::new(997).unwrap());
+            }
+        }
     }
 }

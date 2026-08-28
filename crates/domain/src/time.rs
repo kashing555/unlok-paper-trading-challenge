@@ -9,7 +9,7 @@
 
 use std::fmt;
 
-use chrono::{Datelike, NaiveDate};
+use chrono::NaiveDate;
 
 use crate::DomainError;
 
@@ -51,20 +51,6 @@ impl TradingDay {
             .map(Self)
             .ok_or_else(|| DomainError::ParseDate(format!("{year:04}-{month:02}-{day:02}")))
     }
-
-    /// The next calendar day. Not the next *trading* day — an exchange calendar
-    /// is a production concern (`docs/design.md` §16); here a competition day is
-    /// whatever the operator closes.
-    pub fn succ(self) -> Result<Self, DomainError> {
-        self.0
-            .succ_opt()
-            .map(Self)
-            .ok_or_else(|| DomainError::ParseDate(self.to_string()))
-    }
-
-    pub fn year(self) -> i32 {
-        self.0.year()
-    }
 }
 
 impl fmt::Display for TradingDay {
@@ -79,9 +65,10 @@ mod tests {
 
     #[test]
     fn parses_and_renders_iso_dates() {
-        let day = TradingDay::parse("2026-08-29").unwrap();
-        assert_eq!(day.to_string(), "2026-08-29");
-        assert_eq!(day.year(), 2026);
+        assert_eq!(
+            TradingDay::parse("2026-08-29").unwrap().to_string(),
+            "2026-08-29"
+        );
     }
 
     #[test]
@@ -105,10 +92,16 @@ mod tests {
     }
 
     #[test]
-    fn days_order_and_advance_across_boundaries() {
-        let dec31 = TradingDay::parse("2026-12-31").unwrap();
-        assert_eq!(dec31.succ().unwrap().to_string(), "2027-01-01");
-        assert!(TradingDay::parse("2026-08-28").unwrap() < dec31);
+    fn days_order_chronologically() {
+        // The engine relies on this: days close in ascending order, and the
+        // ladder compounds them in the order a BTreeMap yields.
+        let mut days: Vec<_> = ["2027-01-01", "2026-08-28", "2026-12-31"]
+            .iter()
+            .map(|d| TradingDay::parse(d).unwrap())
+            .collect();
+        days.sort();
+        let sorted: Vec<_> = days.iter().map(ToString::to_string).collect();
+        assert_eq!(sorted, ["2026-08-28", "2026-12-31", "2027-01-01"]);
     }
 
     #[test]

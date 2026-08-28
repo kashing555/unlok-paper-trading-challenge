@@ -4,8 +4,8 @@
 
 use broker::MockBroker;
 use domain::{
-    BrokerOrderId, ClientOrderId, Money, NewOrder, Order, OrderState, ParticipantId, Px, Qty,
-    RejectReason, Side, Symbol, Timestamp,
+    BrokerOrderId, ClientOrderId, Money, NewOrder, ParticipantId, Px, Qty, RejectReason, Side,
+    Symbol, Timestamp,
 };
 use engine::{Command, Engine, Event, Journaled};
 use store::{EventLog, InMemoryLog, SqliteLog};
@@ -29,20 +29,16 @@ fn oid(n: u64) -> ClientOrderId {
     ClientOrderId::new(n)
 }
 
-fn an_order(state: OrderState) -> Box<Order> {
-    let mut o = Order::submit(NewOrder {
-        id: oid(1),
+fn terms(id: u64) -> NewOrder {
+    NewOrder {
+        id: oid(id),
         participant: who("alice"),
         symbol: sym("AAPL"),
         side: Side::Buy,
         qty: qty(100),
         limit_px: px("10.0050"),
         at: Timestamp::from_millis(5),
-    })
-    .unwrap();
-    o.state = state;
-    o.replaces = Some(oid(99));
-    Box::new(o)
+    }
 }
 
 /// One of **every** variant, so a new event type added without a mapping fails
@@ -53,9 +49,7 @@ fn every_event() -> Vec<Event> {
             participant: who("alice"),
             starting_cash: money("100000"),
         },
-        Event::OrderSubmitted {
-            order: an_order(OrderState::New),
-        },
+        Event::OrderSubmitted { order: terms(1) },
         Event::OrderAcknowledged {
             id: oid(1),
             broker_id: BrokerOrderId::new(7),
@@ -73,11 +67,7 @@ fn every_event() -> Vec<Event> {
         Event::OrderCancelled { id: oid(1) },
         Event::OrderReplaced {
             original: oid(1),
-            replacement: an_order(OrderState::PartiallyFilled {
-                broker_id: BrokerOrderId::new(8),
-                filled: qty(40),
-                cost: money("400.2000"),
-            }),
+            replacement: terms(7),
         },
         Event::MarkUpdated {
             symbol: sym("MSFT"),

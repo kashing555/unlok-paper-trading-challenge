@@ -1,0 +1,5 @@
+# Pins the components `scripts/check.sh` and CI need, so a reviewer running the
+# checks gets the same tools rather than a "component not installed" error.
+[toolchain]
+channel = "stable"
+components = ["rustfmt", "clippy"]

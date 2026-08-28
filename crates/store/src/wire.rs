@@ -11,7 +11,7 @@
 //! where that mistake would be permanent.
 
 use domain::{
-    BrokerOrderId, ClientOrderId, DomainError, Money, Order, OrderState, ParticipantId, Px, Qty,
+    BrokerOrderId, ClientOrderId, DomainError, Money, NewOrder, ParticipantId, Px, Qty,
     RejectReason, Side, Symbol, Timestamp, TradingDay,
 };
 use engine::{Event, Journaled};
@@ -35,31 +35,6 @@ pub(crate) enum WireReject {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-#[serde(tag = "state", rename_all = "snake_case")]
-pub(crate) enum WireState {
-    New,
-    Acknowledged {
-        broker_id: u64,
-    },
-    PartiallyFilled {
-        broker_id: u64,
-        filled: i64,
-        cost: i64,
-    },
-    Filled {
-        filled: i64,
-        cost: i64,
-    },
-    Cancelled {
-        filled: i64,
-        cost: i64,
-    },
-    Rejected {
-        reason: WireReject,
-    },
-}
-
-#[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct WireDayInput {
     participant: String,
     closing_value: i64,
@@ -68,6 +43,9 @@ pub(crate) struct WireDayInput {
     active: bool,
 }
 
+/// Submission terms. **No state and no `replaces` field**: an order is always
+/// `NEW` when submitted, and the replace link is the event's own `original`
+/// field. Storing either would be storing a fact twice.
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct WireOrder {
     id: u64,
@@ -76,8 +54,6 @@ pub(crate) struct WireOrder {
     side: WireSide,
     qty: i64,
     limit_px: i64,
-    state: WireState,
-    replaces: Option<u64>,
     submitted_at: i64,
 }
 
@@ -144,39 +120,8 @@ impl From<RejectReason> for WireReject {
     }
 }
 
-impl From<&OrderState> for WireState {
-    fn from(s: &OrderState) -> Self {
-        match s {
-            OrderState::New => Self::New,
-            OrderState::Acknowledged { broker_id } => Self::Acknowledged {
-                broker_id: broker_id.get(),
-            },
-            OrderState::PartiallyFilled {
-                broker_id,
-                filled,
-                cost,
-            } => Self::PartiallyFilled {
-                broker_id: broker_id.get(),
-                filled: filled.get(),
-                cost: cost.raw(),
-            },
-            OrderState::Filled { filled, cost } => Self::Filled {
-                filled: filled.get(),
-                cost: cost.raw(),
-            },
-            OrderState::Cancelled { filled, cost } => Self::Cancelled {
-                filled: filled.get(),
-                cost: cost.raw(),
-            },
-            OrderState::Rejected { reason } => Self::Rejected {
-                reason: (*reason).into(),
-            },
-        }
-    }
-}
-
-impl From<&Order> for WireOrder {
-    fn from(o: &Order) -> Self {
+impl From<&NewOrder> for WireOrder {
+    fn from(o: &NewOrder) -> Self {
         Self {
             id: o.id.get(),
             participant: o.participant.to_string(),
@@ -184,9 +129,7 @@ impl From<&Order> for WireOrder {
             side: o.side.into(),
             qty: o.qty.get(),
             limit_px: o.limit_px.raw(),
-            state: (&o.state).into(),
-            replaces: o.replaces.map(ClientOrderId::get),
-            submitted_at: o.submitted_at.as_millis(),
+            submitted_at: o.at.as_millis(),
         }
     }
 }
@@ -202,7 +145,7 @@ impl From<&Event> for WireEvent {
                 starting_cash: starting_cash.raw(),
             },
             Event::OrderSubmitted { order } => Self::OrderSubmitted {
-                order: (&**order).into(),
+                order: order.into(),
             },
             Event::OrderAcknowledged { id, broker_id } => Self::OrderAcknowledged {
                 id: id.get(),
@@ -224,7 +167,7 @@ impl From<&Event> for WireEvent {
                 replacement,
             } => Self::OrderReplaced {
                 original: original.get(),
-                replacement: (&**replacement).into(),
+                replacement: replacement.into(),
             },
             Event::MarkUpdated { symbol, px } => Self::MarkUpdated {
                 symbol: symbol.to_string(),
@@ -286,40 +229,7 @@ impl From<WireReject> for RejectReason {
     }
 }
 
-impl TryFrom<WireState> for OrderState {
-    type Error = DomainError;
-
-    fn try_from(s: WireState) -> Result<Self, Self::Error> {
-        Ok(match s {
-            WireState::New => Self::New,
-            WireState::Acknowledged { broker_id } => Self::Acknowledged {
-                broker_id: BrokerOrderId::new(broker_id),
-            },
-            WireState::PartiallyFilled {
-                broker_id,
-                filled,
-                cost,
-            } => Self::PartiallyFilled {
-                broker_id: BrokerOrderId::new(broker_id),
-                filled: Qty::new(filled)?,
-                cost: Money::from_raw(cost),
-            },
-            WireState::Filled { filled, cost } => Self::Filled {
-                filled: Qty::new(filled)?,
-                cost: Money::from_raw(cost),
-            },
-            WireState::Cancelled { filled, cost } => Self::Cancelled {
-                filled: Qty::new(filled)?,
-                cost: Money::from_raw(cost),
-            },
-            WireState::Rejected { reason } => Self::Rejected {
-                reason: reason.into(),
-            },
-        })
-    }
-}
-
-impl TryFrom<WireOrder> for Order {
+impl TryFrom<WireOrder> for NewOrder {
     type Error = DomainError;
 
     fn try_from(o: WireOrder) -> Result<Self, Self::Error> {
@@ -330,9 +240,7 @@ impl TryFrom<WireOrder> for Order {
             side: o.side.into(),
             qty: Qty::new(o.qty)?,
             limit_px: Px::from_raw(o.limit_px)?,
-            state: o.state.try_into()?,
-            replaces: o.replaces.map(ClientOrderId::new),
-            submitted_at: Timestamp::from_millis(o.submitted_at),
+            at: Timestamp::from_millis(o.submitted_at),
         })
     }
 }
@@ -350,7 +258,7 @@ impl TryFrom<WireEvent> for Event {
                 starting_cash: Money::from_raw(starting_cash),
             },
             WireEvent::OrderSubmitted { order } => Self::OrderSubmitted {
-                order: Box::new(order.try_into()?),
+                order: order.try_into()?,
             },
             WireEvent::OrderAcknowledged { id, broker_id } => Self::OrderAcknowledged {
                 id: ClientOrderId::new(id),
@@ -374,7 +282,7 @@ impl TryFrom<WireEvent> for Event {
                 replacement,
             } => Self::OrderReplaced {
                 original: ClientOrderId::new(original),
-                replacement: Box::new(replacement.try_into()?),
+                replacement: replacement.try_into()?,
             },
             WireEvent::MarkUpdated { symbol, px } => Self::MarkUpdated {
                 symbol: Symbol::parse(&symbol)?,

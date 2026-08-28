@@ -86,8 +86,10 @@ impl Order {
         Ok(())
     }
 
-    pub const fn remaining(&self) -> Result<Qty, DomainError> {
-        self.qty.checked_sub_const(self.state.filled())
+    /// Quantity still working. Not `const`: nothing needs it to be, and the
+    /// `const` version required a second copy of the underflow rule.
+    pub fn remaining(&self) -> Result<Qty, DomainError> {
+        self.qty.checked_sub(self.state.filled())
     }
 
     /// Cancel-replace, not in-place mutation (`docs/design.md` §5).

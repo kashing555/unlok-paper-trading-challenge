@@ -1,0 +1,66 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+  # Fail on warnings everywhere, not just where a local run remembered to.
+  RUSTFLAGS: -D warnings
+
+jobs:
+  rust:
+    name: fmt · clippy · test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      # The same three checks as scripts/check.sh, kept in the same order so a
+      # local failure and a CI failure look identical.
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo test --workspace
+
+      # The demo is deterministic by design; if two runs ever differ, something
+      # is reading a clock or an unseeded RNG.
+      - name: demo output is reproducible
+        run: |
+          cargo run --quiet --bin ptc-demo > /tmp/run1.txt
+          cargo run --quiet --bin ptc-demo > /tmp/run2.txt
+          diff /tmp/run1.txt /tmp/run2.txt
+
+      # domain is the pure core. If an async runtime, HTTP, SQL or a clock ever
+      # appears in its tree, the dependency rule has been broken silently.
+      - name: domain stays pure
+        run: |
+          tree=$(cargo tree -p domain -e normal --prefix none | awk '{print $1}' | sort -u)
+          echo "$tree"
+          for forbidden in tokio axum hyper rusqlite reqwest rand serde; do
+            if echo "$tree" | grep -qx "$forbidden"; then
+              echo "::error::domain must not depend on $forbidden"; exit 1
+            fi
+          done
+
+  ui:
+    name: cockpit typecheck · build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ui
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - run: npm ci
+      - run: npm run build   # vue-tsc --noEmit && vite build

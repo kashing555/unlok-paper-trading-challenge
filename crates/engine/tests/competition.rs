@@ -275,3 +275,45 @@ fn a_participant_who_never_trades_is_listed_but_never_placed() {
     assert!(!bob.eligible);
     assert_eq!(bob.rank, None);
 }
+
+#[test]
+fn closing_days_out_of_order_is_refused() {
+    // Each day's return is measured against the *previous* close. Closing
+    // 08-29 and then 08-28 would measure the earlier day against the later
+    // one's baseline, and the ladder — which compounds in date order — would
+    // chain two returns that were never computed against each other.
+    let mut h = Harness::new();
+    h.buy("alice", 1, 100);
+    h.mark("12");
+    h.run(Command::CloseDay {
+        day: day("2026-08-29"),
+    });
+
+    assert!(
+        h.try_run(Command::CloseDay {
+            day: day("2026-08-28")
+        })
+        .is_err(),
+        "a day before the latest close must be refused"
+    );
+}
+
+#[test]
+fn a_day_with_no_participants_cannot_be_closed() {
+    // The command would otherwise journal a DayClosed carrying no entries, and
+    // the leaderboard read that follows would then fail — a command that
+    // succeeded and a response that did not.
+    let mut e = Engine::new(MockBroker::simple(0));
+    assert!(e
+        .execute(
+            Timestamp::from_millis(1),
+            Command::CloseDay {
+                day: day("2026-08-28")
+            }
+        )
+        .is_err());
+    assert!(
+        e.closed_days().next().is_none(),
+        "nothing should be journalled"
+    );
+}

@@ -55,6 +55,9 @@ pub enum EngineError {
     #[error("day {0} has not been closed")]
     DayNotClosed(TradingDay),
 
+    #[error("cannot close {day}: {latest} is already closed and days close in order")]
+    DayOutOfOrder { day: TradingDay, latest: TradingDay },
+
     #[error(transparent)]
     Scoring(#[from] ScoringError),
 
@@ -307,7 +310,7 @@ impl<B: Broker> Engine<B> {
                 // participant is reported as such rather than as "no cash".
                 self.portfolio(&participant)?;
 
-                let order = Order::submit(NewOrder {
+                let terms = NewOrder {
                     id,
                     participant,
                     symbol,
@@ -315,14 +318,15 @@ impl<B: Broker> Engine<B> {
                     qty,
                     limit_px,
                     at,
-                })?;
+                };
+                // Built here only to validate; `apply` rebuilds it from the
+                // same terms, so the log and the projection cannot diverge.
+                let order = Order::submit(terms.clone())?;
                 self.check_affordable(&order, None)?;
 
                 let response = self.broker.on_submit(&order);
                 Ok(vec![
-                    Event::OrderSubmitted {
-                        order: Box::new(order),
-                    },
+                    Event::OrderSubmitted { order: terms },
                     broker_response(id, response)?,
                 ])
             }
@@ -351,11 +355,20 @@ impl<B: Broker> Engine<B> {
                 // so it must not count against the replacement.
                 self.check_affordable(&outcome.replacement, Some(id))?;
 
+                let terms = NewOrder {
+                    id: replacement_id,
+                    participant: outcome.replacement.participant.clone(),
+                    symbol: outcome.replacement.symbol.clone(),
+                    side: outcome.replacement.side,
+                    qty,
+                    limit_px,
+                    at,
+                };
                 let response = self.broker.on_submit(&outcome.replacement);
                 Ok(vec![
                     Event::OrderReplaced {
                         original: id,
-                        replacement: Box::new(outcome.replacement),
+                        replacement: terms,
                     },
                     broker_response(replacement_id, response)?,
                 ])
@@ -380,13 +393,35 @@ impl<B: Broker> Engine<B> {
             Command::CloseDay { day } => {
                 // Idempotent: a published ranking that silently recomputes is
                 // worse than a stale one, so re-closing does nothing at all.
+                // Checked first, so re-closing the latest day is a no-op rather
+                // than tripping the ordering rule below.
                 if self.closed.contains_key(&day) {
                     return Ok(vec![]);
                 }
-                Ok(vec![Event::DayClosed {
-                    day,
-                    entries: self.day_entries()?,
-                }])
+
+                // Days close in order. Each day's return is measured against
+                // the previous close, and the ladder compounds them in date
+                // order — closing 08-29 then 08-28 would measure the earlier
+                // day against the later one's baseline and chain two returns
+                // that were never computed against each other.
+                if let Some(latest) = self.closed.keys().next_back() {
+                    if day <= *latest {
+                        return Err(EngineError::DayOutOfOrder {
+                            day,
+                            latest: *latest,
+                        });
+                    }
+                }
+
+                let entries = self.day_entries()?;
+                // Refuse rather than journal a day nobody can be ranked on:
+                // the event would commit and the leaderboard read that follows
+                // would fail, leaving a command that succeeded and a response
+                // that did not.
+                if entries.is_empty() {
+                    return Err(ScoringError::NoParticipants { day }.into());
+                }
+                Ok(vec![Event::DayClosed { day, entries }])
             }
         }
     }
@@ -470,7 +505,8 @@ impl<B: Broker> Engine<B> {
             }
 
             Event::OrderSubmitted { order } => {
-                self.orders.insert(order.id, (**order).clone());
+                let order = Order::submit(order.clone())?;
+                self.orders.insert(order.id, order);
             }
 
             Event::OrderAcknowledged { id, broker_id } => {
@@ -493,7 +529,11 @@ impl<B: Broker> Engine<B> {
                 replacement,
             } => {
                 self.order_mut(*original)?.apply(&OrderEvent::Cancelled)?;
-                self.orders.insert(replacement.id, (**replacement).clone());
+                let mut replacement = Order::submit(replacement.clone())?;
+                // The link is the event's own `original` field — not a second
+                // copy carried inside the replacement's terms.
+                replacement.replaces = Some(*original);
+                self.orders.insert(replacement.id, replacement);
             }
 
             Event::OrderFilled { id, qty, px, fee } => {

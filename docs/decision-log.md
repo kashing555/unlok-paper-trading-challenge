@@ -905,3 +905,55 @@ not a panic.
 crate that was folded into `api`, and pointed at a README stage table that the
 final README no longer has. Both corrected — the same failure the file warns
 about, found by running its own audit.
+
+## 2026-08-29 — review pass: three bugs, −91 lines, CI
+
+A deliberate improvement pass. Three real defects found, each written as a
+failing test first.
+
+**The broker's slice budget was shared across every order.** `FillPolicy::Partial`
+documented "at most `max_slices` executions **per order**", but the counter lived
+on the broker, so working two orders at once let one spend the other's budget —
+an order could complete on its first execution regardless of size. Fixed by
+removing the counter entirely: each execution now takes at least `1/max_slices`
+of the order's **original** quantity, so the bound falls out of the order itself.
+**Stateless, so cross-order interference is not possible rather than merely
+fixed**, and a field disappeared. Checked across 40 seeds × 5 slice settings.
+
+**Days could be closed out of order.** Each day's return is measured against the
+previous close and the ladder compounds in date order, so closing 08-29 and then
+08-28 measured the earlier day against the later one's baseline and chained two
+returns never computed against each other. Now refused, with the idempotent
+re-close checked *first* so re-closing the latest day stays a no-op.
+
+**A day with no participants journalled an event nobody could read.** `CloseDay`
+committed a `DayClosed` carrying no entries, and the leaderboard read that
+followed failed — a command that succeeded and a response that did not. Refused
+in `decide`, before anything is emitted.
+
+**Reductions, all of them things that bought nothing:**
+
+- **`WireState` deleted (−91 lines in `store`).** Every event carrying an order
+  carries it at submission, and `Order::submit` always produces `NEW` — so the
+  wire format was storing a constant. Events now carry `NewOrder` **terms**, and
+  the lifecycle is derived by folding later events. That is the same rule as
+  positions and P&L: keep the facts, derive the rest. It also makes the
+  redundancy *structurally impossible* rather than merely absent, which is why
+  this was worth a refactor and not just a deletion.
+- **`Qty::checked_sub_const` deleted.** It existed so `remaining()` could be
+  `const`, which nothing needed, and it was a second copy of the underflow rule.
+- **Four unused public functions deleted** — `TradingDay::{succ, year}`,
+  `Money::{checked_neg, is_negative}`. Each was kept alive only by its own test,
+  which is `delivery.md`'s "what breaks if this is deleted? nothing" case.
+
+**Infrastructure.** GitHub Actions running the same three checks as
+`scripts/check.sh`, in the same order, plus two guards that only a machine will
+remember: **the demo is run twice and diffed** (if it ever differs, something is
+reading a clock or an unseeded RNG), and **`domain`'s dependency tree is asserted
+to contain no async runtime, HTTP, SQL or RNG** — the purity rule enforced on
+every push rather than by review. The guard was checked against a dependency
+that *is* present, so it is not a no-op. Plus `rust-toolchain.toml` pinning
+`rustfmt` and `clippy`, so a reviewer running the checks gets the tools rather
+than an error.
+
+Net: 3,186 → 3,095 lines of non-comment source, 98 → 102 tests.
