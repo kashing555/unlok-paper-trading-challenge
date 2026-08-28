@@ -7,6 +7,10 @@ version.workspace = true
 name = "ptc"
 path = "src/main.rs"
 
+[[bin]]
+name = "ptc-demo"
+path = "src/bin/demo.rs"
+
 [dependencies]
 domain = { workspace = true }
 engine = { workspace = true }

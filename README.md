@@ -20,8 +20,8 @@ Rust workspace (Axum HTTP) + Vue 3 cockpit. Long-only equities.
 > | **B2** scoring · leaderboard · ladder | `crates/scoring` | ✅ done |
 > | **B1** store — event log + replay | `crates/store` | ✅ done |
 > | **C1** REST API (Axum) | `crates/api` | ✅ done |
-> | **C2** CLI driver | | next |
-> | D cockpit | | |
+> | **C2** CLI driver (`ptc-demo`) | `crates/api` | ✅ done |
+> | README (graded deliverable) · D cockpit | | next |
 
 ## Documentation
 

@@ -212,8 +212,8 @@ crates/
   broker/       mock broker: seeded fill policy, execution report generation
   scoring/      daily results, leaderboard, ladder — pure, no async, no I/O
   store/        SQLite append-only event log + projection rebuild
-  api/          Axum HTTP, DTOs, the `ptc` binary
-  cli/          thin driver over the same service layer (scripted demo)
+  api/          application assembly (`App`: engine + log + write-ahead),
+                Axum HTTP and DTOs, the `ptc` server and the `ptc-demo` CLI
 ui/             Vue 3 + TS + Vite cockpit — beyond the brief, see README
 tests/          integration: full trading day, replay determinism
 ```
@@ -244,16 +244,21 @@ caller needs to know what it actually is, not merely that it failed.
 
 ## 12. Concurrency
 
-**A single-writer command loop.** All mutating commands go through one channel
-into one task that owns the domain; readers get consistent snapshots.
+**A single writer: one mutex around the whole application.** Every command and
+every read takes it, so mutations form one total order and no read sees a
+half-applied command.
 
-Chosen over a `RwLock` per participant or per-entity fine-grained locking
-because a competition's total order volume is trivially within one core, and the
-property that matters here is not throughput but **a single, total, replayable
-ordering of events**. Interleaved writers make "same input, same leaderboard"
-something you hope for rather than something you test. That trade would be wrong
-in a real matching engine and is right here — noted in the README as an explicit
-production delta.
+The property that matters here is **ordering, not throughput** — "same input,
+same leaderboard" has to be something we test, not something we hope for.
+Interleaved writers would make that impossible.
+
+*This section originally specified a channel-and-actor.* The implementation
+used a mutex instead: it delivers the identical ordering property with a
+fraction of the machinery, and a competition's order volume is nowhere near one
+core. Building the actor anyway would be the speculative complexity
+`principles.md` §7 declines. The actor is the right answer when readers must not
+block writers — which is a real matching engine, not this — and it is listed as
+a production delta in §16.
 
 ## 13. Storage
 
@@ -292,8 +297,13 @@ authentication · rate limiting · horizontal scale.
 
 For the README's "what would change for production" section:
 
-- Single-writer loop → partitioned by participant, or an event bus with
-  per-participant ordering guarantees.
+- Single mutex → a channel-and-actor so reads never block writes, then
+  partitioned by participant, or an event bus with per-participant ordering
+  guarantees.
+- Ranking rules are code, so changing them changes historical leaderboards. A
+  `DayClosed` event stores the day's *facts* and the board is recomputed from
+  them; in production a rules change needs a migration that freezes already
+  published boards.
 - SQLite → Postgres with the event log partitioned by date; projections
   materialised rather than replayed from zero at boot.
 - Mock broker → a real venue adapter (FIX or REST), which makes acks

@@ -39,11 +39,19 @@ knows the outside exists.
 | `domain` | *nothing* (std + `rust_decimal` only) | async, HTTP, SQL, time, RNG, config |
 | `scoring` | `domain` | async, HTTP, SQL, time, RNG |
 | `broker` | `domain` | HTTP, SQL — RNG only via an injected seed |
-| `store` | `domain` | HTTP, `scoring`, `broker` |
-| `engine` | `domain`, `broker`, `store`, `scoring` | HTTP, CLI, UI |
-| `api` | `engine`, `domain` | *is* the outside; everything may know it exists, it may know nothing back |
-| `cli` | `engine`, `domain` | `api` |
+| `engine` | `domain`, `broker`, `scoring` | HTTP, SQL, CLI, UI |
+| `store` | `domain`, `engine` (for the event type it persists) | HTTP, `scoring`, `broker` |
+| `api` | everything above | *is* the outside; everything may know it exists, it may know nothing back |
 | `ui` | `api` over HTTP only | everything else |
+
+**Corrected against the implementation (2026-08-29):** this table first had
+`engine` depending on `store`, which is impossible — `store` persists
+`engine`'s event type, so it depends on `engine`, and the reverse would be a
+cycle. The application assembly that needs both (`App`) therefore lives in
+`api` alongside the HTTP surface, and the `ptc-demo` CLI is a second binary in
+that crate rather than a crate of its own. The stricter version — the `EventLog`
+port defined in `engine` and implemented by `store`, letting `App` move down a
+layer — is the right shape and is noted as a production delta.
 
 An arrow pointing the wrong way is a design error, not a style preference. In a
 Cargo workspace it is also a **compile error** — a crate cannot import what is

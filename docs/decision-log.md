@@ -786,3 +786,30 @@ started on a port and driven with curl through the whole flow: the seeded broker
 filled a 100-share order as 69 → 30 → 1, the portfolio valued to 100200.0000,
 the day closed, and the ladder listed the participant who never traded as
 `rank: null, eligible: false`.
+
+## 2026-08-29 — Stage C2 landed, and two docs corrected against the code
+
+**`ptc-demo` drives the same application layer the HTTP API drives**, not the
+API itself: no server, no ports, nothing left running. Every timestamp is
+supplied and the broker is seeded, so **two runs are byte-identical** —
+verified by diffing them, not by asserting it.
+
+**A real display bug, found by checking the arithmetic independently.**
+`{:.4}` on a `rust_decimal::Decimal` **truncates rather than rounds**: a
+cumulative return of 0.14169% printed as `0.1416%`, wrong in the digit a reader
+checks. Fixed by rounding explicitly before formatting. Every money figure in
+the demo was re-derived by hand and matches exactly; only the percentage
+display was wrong.
+
+**The dependency table in `principles.md` was wrong and is corrected.** It had
+`engine` depending on `store` — impossible, because `store` persists `engine`'s
+event type and the reverse would be a cycle. The application assembly that needs
+both (`App`) therefore lives in `api`, and `ptc-demo` is a second binary in that
+crate rather than a crate of its own. The stricter shape — `EventLog` defined as
+a port *in* `engine` and implemented by `store`, letting `App` move down a layer
+— is the right answer and is now a production delta rather than a silent
+inconsistency.
+
+**`design.md` §12 was corrected to say mutex, not actor**, matching what was
+built and why. The doc was the bug, per the maintenance rule; the actor is
+recorded in §16 as the production change.
