@@ -668,3 +668,34 @@ fully-tied day produce byte-identical leaderboards, because the sort ends in
 numbers stay contiguous among those who actually competed. The test pins the
 uncomfortable case directly: a never-traded account's 0% beats an active
 participant's −5% on the day, and it still does not place.
+
+## 2026-08-29 — Stage B1 landed
+
+**Serde stays out of the domain, and the cost was paid rather than avoided.**
+`crates/store/src/wire.rs` is 360 lines of explicit mirror types and `From`
+impls. What it buys: a rename inside `domain` cannot silently change the format
+of data already on disk, and the storage format is a decision made in one place
+instead of a by-product of a struct definition. Every field crosses as its raw
+scaled integer — a JSON number for money would be an IEEE double, and this file
+is the boundary where that mistake would be permanent.
+
+**Every event variant is round-tripped in one test.** A new event type added
+without a mapping fails there rather than at 3am against a log that will not
+load. Asserted with exact equality, so a sub-cent price and a capitalised fee
+have to come back bit for bit.
+
+**Appends are idempotent, by primary key rather than by convention.** `seq` is
+the primary key and a conflicting insert does nothing, so re-appending after a
+crash mid-write duplicates nothing. Tested against both implementations,
+including a partial re-append of the first three entries.
+
+**One transaction per batch:** a command's events land together or not at all. A
+partially-written command would replay into a state the engine never held.
+
+**`InMemoryLog` is a fake, not a mock** — it implements the real behaviour
+including idempotency, so tests written against it are testing behaviour and
+survive a refactor of the SQLite side (`rust.md`).
+
+**The replay guarantee now runs end-to-end through SQLite**, still with a
+different broker seed, and the sub-cent basis (400.2000) is asserted after the
+round trip through JSON.

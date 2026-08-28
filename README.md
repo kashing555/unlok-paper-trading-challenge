@@ -18,8 +18,9 @@ Rust workspace (Axum HTTP) + Vue 3 cockpit. Long-only equities.
 > | **A3** mock broker | `crates/broker` | ✅ done |
 > | **A4** engine loop | `crates/engine` | ✅ done — **gate passed** |
 > | **B2** scoring · leaderboard · ladder | `crates/scoring` | ✅ done |
-> | **B1** store — event log + replay | | next |
-> | C API · CLI — D cockpit | | |
+> | **B1** store — event log + replay | `crates/store` | ✅ done |
+> | **C1** API · **C2** CLI | | next |
+> | D cockpit | | |
 
 ## Documentation
 
