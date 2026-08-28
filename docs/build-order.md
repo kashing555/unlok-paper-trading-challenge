@@ -1,6 +1,6 @@
 # Build order — engine first
 
-> The principle from [`.claude/principles.md`](../.claude/principles.md) §6:
+> The principle from [`.claude/principles.md`](../.claude/principles.md) §8:
 > **the engine is the product; everything else is a way to reach it.** Order
 > lifecycle, position/P&L accounting and the broker are what the brief scores.
 > HTTP, persistence, CLI and the cockpit are transport, and if the dependency
@@ -54,7 +54,7 @@ is an error rather than a zero.
 
 > **A1 and A2 are independent** — different files, no shared types beyond A0.
 > Two people can hold them at once. This is the parallel-work test from
-> `principles.md` §3 being cashed in on the first day.
+> `principles.md` §4 being cashed in on the first day.
 
 ### A3 · Mock broker
 

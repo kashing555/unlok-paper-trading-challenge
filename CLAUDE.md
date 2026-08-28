@@ -63,9 +63,19 @@ decisions it deliberately leaves to us. The spec is the requirement; read it
 before proposing anything.
 
 @.claude/principles.md — the structural rules: one owner per fact, the
-dependency table, functional core / imperative shell, the five coupling tests,
-which parts of SOLID we apply and which we decline, and the trading-specific
-principles (single-writer, idempotency, fail-closed, exact money).
+dependency table, functional core / imperative shell, type-driven design
+(illegal states unrepresentable, parse don't validate), connascence as the
+precise vocabulary for coupling, the five coupling tests, which parts of SOLID
+and CUPID we apply and which we decline — including **Postel's law, rejected**:
+being liberal in what we accept is how a malformed order becomes a position —
+and the trading principles (single-writer, idempotency, fail-closed, exact
+money).
+
+@.claude/rust.md — how the above is expressed in Rust: crate-vs-module, module
+layout and visibility, newtypes with fallible constructors, **why the order
+lifecycle is a runtime enum rather than typestate**, error taxonomy (bug vs
+expected failure), traits only at ports, serde kept out of the domain, test
+layout, workspace lints.
 
 @.claude/approach.md — how to work here: the deliverable is the argument, the
 test is the proof, determinism over cleverness, no scope past the brief.

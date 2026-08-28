@@ -16,9 +16,10 @@
 
 Also outside `docs/`: [`.claude/challenge.md`](../.claude/challenge.md) — the
 brief verbatim and what it actually scores, read before proposing anything —
-and [`.claude/principles.md`](../.claude/principles.md), the structural rules
-(dependency table, coupling tests, trading-system principles) that the design
-here is an application of. The rest of `.claude/` holds the working agreements.
+and [`.claude/principles.md`](../.claude/principles.md) +
+[`.claude/rust.md`](../.claude/rust.md), the structural rules (dependency table,
+type-driven design, connascence, coupling tests, trading principles) and their
+expression in Rust, which the design here is an application of. The rest of `.claude/` holds the working agreements.
 
 ---
 

@@ -80,7 +80,37 @@ state. It also gives every rejection a place to live: a command can fail
 validation and produce no events, which is a normal outcome rather than an
 exception path.
 
-## Part 3 — Detecting coupling
+## Part 3 — Type-driven design
+
+Two principles that turn a class of runtime bug into a compile error. The
+mechanisms are in [`rust.md`](rust.md); the reasoning is here.
+
+**Make illegal states unrepresentable** ([Minsky](https://blog.janestreet.com/effective-ml-revisited/)).
+A struct with `filled_qty`, `cancelled_at` and `reject_reason` as optional
+fields admits "cancelled AND rejected, with a fill" — a state no order can be
+in, which some handler will eventually construct and no test will cover. An enum
+whose variants carry exactly their own data cannot express it. Prefer the shape
+where the bad state has no spelling.
+
+**Parse, don't validate** ([King](https://lexi-lambda.github.io/blog/2019/11/05/parse-don-t-validate/)).
+Validation checks a value and moves on, leaving it illegal-but-checked and the
+check re-runnable downstream — which is where "we validated it three layers up,
+mostly" comes from. Parsing returns a *type that carries the proof*, so every
+function taking a `Qty` is relieved of re-checking it. Constructors are fallible
+and fields are private; an invalid value never exists rather than existing and
+being caught.
+
+Both are the same move: **push the guarantee into the type so the compiler
+maintains it**, rather than into a convention that reviewers maintain. That is
+the same trade as enforcing the dependency rule with crates in §2.
+
+Where the guarantee is *not* available — order state is loaded from an event log
+at runtime, so its type is not known statically — we say so and take the next
+best thing (an exhaustive `match` with no wildcard arm). `rust.md` has that
+decision in full. Knowing which guarantee you can afford is the skill; reaching
+for the strongest one everywhere is how a codebase becomes unreadable.
+
+## Part 4 — Detecting coupling
 
 Coupling is not a feeling. Each of these is a check that either passes or fails:
 
@@ -99,6 +129,46 @@ Coupling is not a feeling. Each of these is a check that either passes or fails:
 
 Run these as questions during review, not as an afterthought.
 
+### Naming the coupling: connascence
+
+"Coupling is bad" is not actionable. [Connascence](https://en.wikipedia.org/wiki/Connascence)
+(Page-Jones) is the precise version: two components are connascent when changing
+one requires changing the other. It grades on three axes — **strength** (how hard
+the change is), **locality** (how far apart they sit), and **degree** (how many
+things are affected).
+
+The rule that makes it useful: **the further apart two things are, the weaker
+their connascence must be.** Strong connascence inside one function is fine —
+that is just code. The same connascence across a crate boundary is a design
+error, because nobody reading one side can see the other.
+
+Static forms, weakest to strongest — the compiler can see all of these:
+
+| Form | Two things agree on | Across our crate boundaries |
+|---|---|---|
+| **Name** | an identifier | fine — this is what an API is |
+| **Type** | a type | fine, and the target to convert others into |
+| **Meaning** | what a bare value *signifies* | **not allowed** — this is `i64`-means-cents |
+| **Position** | argument order | avoid — a 4-arg call is a swap waiting to happen |
+| **Algorithm** | a shared procedure | **not allowed** — put it in `domain` and call it |
+
+Dynamic forms — execution order, timing, value, identity — are **strictly worse
+because the compiler cannot see them at all**, and they are what our structure
+exists to eliminate:
+
+- **Connascence of value** across components *is* the two-copies-of-one-fact bug
+  from §1: a cached position and a folded position must change together, and
+  nothing enforces it. The event log removes it by deleting one of the copies.
+- **Connascence of execution order** is what the single-writer loop removes: with
+  one writer there is one order, and it is the log's.
+- **Connascence of timing** is what injected clocks remove.
+
+The practical move is almost always **convert connascence of meaning into
+connascence of type**. A function taking `(i64, i64)` where the first is cents
+and the second is a scaled price shares meaning with every caller and cannot be
+checked; taking `(Cash, Px)` shares only type, and the compiler checks it. That
+one conversion is most of what the newtypes in §3 are for.
+
 ### Working on different things at once
 
 The seam is the contract, and the contract is a **type agreed before either side
@@ -109,7 +179,7 @@ check rather than at a merge conflict.
 One owner per crate at a time. Cross-crate changes get their type change landed
 first, alone, so the other side can move.
 
-## Part 4 — SOLID, kept honest
+## Part 5 — SOLID, kept honest
 
 Cited because reviewers ask. Applied selectively, because applying all five
 uniformly to a two-day exercise is cargo cult:
@@ -122,13 +192,28 @@ uniformly to a two-day exercise is cargo cult:
 | **O**pen/closed | **Mostly declined.** Extension points built for imagined future variation are `baseline.md` §2's "speculative flexibility" wearing a principle's name. The one place it earns itself: the ranking strategy, because the brief explicitly asks us to consider alternatives, so more than one really exists |
 | **L**iskov substitution | **Not a live concern** — no inheritance hierarchies |
 
+**CUPID** ([North](https://dannorth.net/blog/cupid-for-joyful-coding/)) is the
+more useful lens for a codebase this size, and deliberately not a set of rules —
+they are *properties*, things code is closer to or further from, with a direction
+of travel. Two carry real weight here:
+
+- **Predictable** — does what it appears to, deterministically, and is
+  observable. In a system whose output is a ranking, this is not a nicety; it is
+  the requirement the brief actually states.
+- **Unix philosophy** — one thing well, composed. `domain` decides, `store`
+  persists, `api` translates. The pipeline is the design.
+
+Composable, Idiomatic and Domain-based are the reason for the crate split, the
+naming conventions in [`rust.md`](rust.md), and using the words *fill*, *mark*
+and *ladder* in code rather than *update*, *value* and *list*.
+
 Also declined, deliberately: a DI framework · a generic `Repository<T>` over a
 single store · an interface per struct · a mapper layer between identical
 structs. Each adds indirection and buys nothing at this size.
 [YAGNI](https://martinfowler.com/bliki/Yagni.html) is not a licence to make a
 mess; it is a reason not to build the second thing until there is a second thing.
 
-## Part 5 — Trading-system principles
+## Part 6 — Trading-system principles
 
 The general rules above are true of any backend. These are the ones this domain
 adds, and they are where the 20 years shows.
@@ -178,7 +263,42 @@ optimising for it here would be the same speculative-complexity error as OCP
 above. It is the first thing to reach for if this ever became an actual matching
 engine.
 
-## Part 6 — Build the engine first
+## Part 7 — Principles we decline
+
+Naming these matters as much as the ones we keep — an unexamined principle
+applied out of context is how systems get worse while everyone follows the rules.
+
+**Postel's law / the robustness principle** — *"be conservative in what you
+send, be liberal in what you accept."* **Rejected outright on every input path.**
+Being liberal in what we accept is precisely how a malformed order becomes a
+real position. An order with a missing side, an unparseable price, or a quantity
+we had to guess at gets **rejected loudly at the boundary**, not repaired into
+something plausible. In this domain a rejected order costs a retry; an accepted
+misinterpretation costs money and is discovered later. Strict parsing, no
+coercion, no defaults filled in for absent fields. (This is the same instinct as
+fail-closed in §6, applied at the edge rather than the middle.)
+
+**DRY, taken as far as it will go.** Two pieces of code that look alike but
+change for different reasons are not duplication, and merging them creates a
+coupling that has to be un-merged later under pressure. *Duplication is cheaper
+than the wrong abstraction* ([Metz](https://sandimetz.com/blog/2016/1/20/the-wrong-abstraction)).
+DRY applies to **knowledge** — the fee convention, the tiebreak order — not to
+syntax. Deduplicate the rule; leave the two similar-looking functions alone
+until they demonstrate they change together.
+
+**Speculative generality.** Configuration, plugin points, and type parameters
+added for a second case that does not exist. Covered by `baseline.md` §2 and by
+declining OCP in §5, restated here because it arrives disguised as good practice.
+
+**Layers that only forward.** A mapper between two identical structs, a service
+that calls one repository method, a `Repository<T>` over a single store. Each
+adds a hop to read and buys nothing at this size.
+
+**Defensive copying and null-guarding everywhere.** In a language with ownership
+and no null, this is noise that hides the two or three places where a check is
+load-bearing.
+
+## Part 8 — Build the engine first
 
 Detail in [`docs/build-order.md`](../docs/build-order.md). The principle:
 

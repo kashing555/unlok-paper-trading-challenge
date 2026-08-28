@@ -128,7 +128,7 @@ dependency rule is a **compile error**: a crate cannot import what is not in its
 discipline, and discipline is what erodes on day two.
 
 **Coupling is checked, not felt.** Five runnable tests — deletion, swap, purity,
-parallel-work, explanation (`principles.md` §3). The deletion test is what backs
+parallel-work, explanation (`principles.md` §4). The deletion test is what backs
 the README's claim that the service is complete with `ui/` deleted; it is a
 property we can run rather than a promise.
 
@@ -154,5 +154,66 @@ defensible submission. The alternative ordering — scaffold the web service
 first — fails to a half-wired CRUD app with the scored content missing.
 
 **A1/A2 and B1/B2 are deliberately independent** so two people can work at once.
-That independence is the parallel-work test from `principles.md` §3 being cashed
+That independence is the parallel-work test from `principles.md` §4 being cashed
 in, and it is the practical reason the dependency rule is worth enforcing at all.
+
+## 2026-08-29 — type-driven design, coupling vocabulary, Rust structure
+
+**Connascence adopted as the vocabulary for coupling** (`principles.md` §4).
+"Coupling is bad" is not actionable; connascence grades it by strength, locality
+and degree, and yields a rule that is: *the further apart two things sit, the
+weaker their connascence must be.* The operative move for us is **converting
+connascence of meaning into connascence of type** — a function taking
+`(i64, i64)` where one is cents and the other a scaled price shares meaning with
+every caller and cannot be checked; `(Cash, Px)` shares only type and the
+compiler checks it. That is most of what the newtypes are for. It also renames
+the §1 bug precisely: two copies of one fact is *connascence of value across a
+boundary*, and dynamic connascence is worse than static because the compiler
+cannot see it at all.
+
+**Type-driven design promoted to its own part** (`principles.md` §3): make
+illegal states unrepresentable, and parse rather than validate. Both are the
+same move — push the guarantee into the type so the compiler maintains it — and
+the same trade as enforcing the dependency rule with crates rather than
+convention.
+
+**The order lifecycle is a runtime enum, not typestate** (`rust.md`). Typestate
+(`Order<New>`, `Order<Acknowledged>`) makes an illegal transition fail to
+compile and was the attractive option. Rejected for one disqualifying reason:
+**order state is loaded from an event log at runtime**, so the type to construct
+is not known statically; a store would have to erase back to an enum at the
+boundary, leaving both mechanisms and the guarantee of neither. Taken instead: a
+total transition function with exhaustiveness enforced by `match` and **no
+wildcard arm** — which still catches the mistake that actually happens (adding a
+state and not handling every pairing). A wildcard in a transition match is a
+review failure. Typestate stays right where the caller knows the state
+statically; ours is runtime uncertainty.
+
+**Postel's law rejected on every input path** (`principles.md` §7). "Be liberal
+in what you accept" is how a malformed order becomes a real position. Missing
+side, unparseable price, ambiguous quantity → **reject loudly at the boundary**,
+never repair into something plausible. A rejected order costs a retry; an
+accepted misinterpretation costs money and is found later. Named explicitly
+because it is a famous principle and declining it needs to read as a decision.
+
+**Also declined, with reasoning:** DRY pursued past knowledge into syntax
+(duplication is cheaper than the wrong abstraction — two functions that look
+alike but change for different reasons are not duplication); speculative
+generality; layers that only forward; blanket defensive copying.
+
+**CUPID cited alongside SOLID** (`principles.md` §5) as the more useful lens at
+this size — properties with a direction of travel rather than rules. *Predictable*
+is not a nicety here: it is the determinism the brief actually requires.
+
+**Serde does not touch the domain** (`rust.md`). DTOs live in `api` with explicit
+`From` impls. A wire format is a contract with the outside world; deriving it on
+domain types couples the two, makes an internal rename a breaking API change,
+and invites unintended fields into the JSON. It is also what lets money
+serialise as a decimal string at the edge while staying `i64` inside. The extra
+`From` impls are the price and they are the seam.
+
+**Errors split by kind, not severity** (`rust.md`): a rejected order is a
+`Result` (a normal competition outcome); a negative position is a **bug** —
+`debug_assert!` plus a hard error, never a warning. `thiserror` in libraries so
+callers can match, `anyhow` in binaries only. `unwrap_used`/`expect_used` denied
+in `domain` by workspace lint rather than by review.
