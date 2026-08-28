@@ -83,6 +83,11 @@ test is the proof, determinism over cleverness, no scope past the brief.
 @.claude/code-style.md — conventions: integer money, pure logic in tested
 functions, comments record why, total-order sorts, no floats in P&L.
 
+@.claude/delivery.md — what is actually handed over: the git history is part of
+the submission, write nothing we cannot defend (the brief's own constraint), the
+fixed order for cutting scope under time pressure, and why the README is written
+last.
+
 ## Precedence
 
 Explicit instruction in the conversation > `.claude/challenge.md` (the brief is

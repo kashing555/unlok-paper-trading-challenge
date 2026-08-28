@@ -217,3 +217,40 @@ serialise as a decimal string at the edge while staying `i64` inside. The extra
 `debug_assert!` plus a hard error, never a warning. `thiserror` in libraries so
 callers can match, `anyhow` in binaries only. `unwrap_used`/`expect_used` denied
 in `domain` by workspace lint rather than by review.
+
+## 2026-08-29 — delivery discipline, and a stop on documentation
+
+**The git history is treated as part of the submission** (`delivery.md`). The
+reviewer runs `git log`; it is the only record of *how* this was built. Atomic
+commits, every one compiling with tests green, messages carrying the why — and
+a history that shows the engine landing before any HTTP, demonstrating the
+build-order argument rather than asserting it.
+
+**A fixed cut order, decided now rather than at midnight on day two:** cockpit,
+then CLI, then polish. Never tests, never the README, never anything in Stage A.
+Cut from the end, never the middle — a missing layer is a documented decision, a
+half-wired one is a bug and reads as one. Cut scope, never rigour. Everything cut
+goes in the README's limitations section with its reasoning; owning a gap costs
+nothing, being caught with an unmentioned one costs everything.
+
+**"Write nothing we cannot defend"** promoted to an explicit rule, since the
+brief makes it a constraint (*"you should be able to explain and modify all
+submitted code"*) and it binds hardest on generated code. Every dependency
+justifiable in a sentence; every abstraction able to answer "what breaks if this
+is deleted?"; generated code read line by line before commit, at the same
+standard as typed code.
+
+**Testing discipline: fakes over mock frameworks** (`rust.md`). Ports are small,
+so an in-memory `FakeEventLog` is a dozen lines and behaves like the real thing.
+A mock asserting which methods were called in what order tests the
+implementation — connascence of algorithm between test and code — so every
+refactor breaks it. Also: assert on state and events, never private fields or
+call counts; and **do not test the compiler** — there is no test to write for
+"a `Qty` cannot be negative" when the constructor makes it unrepresentable. Test
+the parsing boundary instead.
+
+**Documentation stops here.** 1,850 lines of design against zero lines of code
+is itself the speculative-complexity failure these files warn about, and the
+brief scores scope discipline. The design is settled enough to build from and
+every remaining question is one that implementation answers better than more
+prose. Next commit is Stage A0.

@@ -181,6 +181,22 @@ identity.
 - **Test names are sentences.** `cancel_after_partial_fill_retains_filled_qty`,
   not `test_cancel_2`. They are read by the reviewer as documentation.
 
+Three rules about what to test:
+
+- **Fakes, not mock frameworks.** A port has few methods, so an in-memory
+  `FakeEventLog` or a scripted `FakeBroker` is a dozen lines and behaves like the
+  real thing. A mock asserting *which methods were called in what order* tests
+  the implementation, which means every refactor breaks it — connascence of
+  algorithm between test and code (`principles.md` §4).
+- **Test behaviour, not structure.** Assert on resulting state and emitted
+  events, never on private fields or call counts. The question a test answers is
+  "does submitting this order produce this position", not "does it call
+  `apply()` twice".
+- **Do not test the compiler.** No test that a `Qty` cannot be negative when the
+  constructor makes that unrepresentable — §3's whole point is that such a test
+  has nothing to assert. Test the *parsing boundary* instead: that bad input is
+  rejected with the right error.
+
 ## Workspace hygiene
 
 - `[workspace.dependencies]` — every version declared once; members take
