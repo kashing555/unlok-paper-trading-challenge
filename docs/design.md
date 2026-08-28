@@ -56,14 +56,18 @@ matter and too late to reconstruct.
 
 | Quantity | Representation | Why |
 |---|---|---|
-| Cash, notional, P&L | `i64` minor units (cents) in a `Cash` newtype | Exact. A float cent error compounds across a competition and cannot be reconciled afterwards |
-| Price | `i64` scaled 1e4 in a `Px` newtype | Sub-cent marks without float |
+| Cash, notional, P&L | `i64` at a shared scale of 1e4, in a `Cash` newtype | Exact. A float cent error compounds across a competition and cannot be reconciled afterwards |
+| Price | `i64` at the **same** 1e4 scale, in a `Px` newtype | One shared scale means `notional = px.raw × qty` — an exact multiply with **no division and so no rounding** anywhere in the core. On a cents scale, `$10.0050 × 1` is 1000.5 cents and could only be stored by rounding, on every fill, silently |
 | Quantity | `i64` whole shares in a `Qty` newtype | Long-only equities; no fractional shares (assumption) |
 | Average cost | rational: `total_cost: i64` / `total_qty: i64` | Divided only for display. Storing a *rounded* average and re-multiplying drifts |
 | Return % | `Decimal` computed once at day close, from integer inputs | Presentation-layer only; never feeds another calculation |
 
 JSON carries money as decimal **strings**. A JSON number is an IEEE double and
-`0.1 + 0.2` is where money goes missing.
+`0.1 + 0.2` is where money goes missing. Parsing is strict — `1.23456` is
+rejected rather than truncated (`.claude/principles.md` §7).
+
+Settlement rounding to a real currency's minor unit is deliberately not
+modelled; it is a production concern (§16).
 
 ## 4. Order lifecycle
 

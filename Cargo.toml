@@ -1,0 +1,23 @@
+[workspace]
+resolver = "2"
+members = ["crates/domain"]
+
+[workspace.package]
+edition = "2021"
+version = "0.1.0"
+
+[workspace.dependencies]
+# default-features = false deliberately drops chrono's `clock` feature — that is
+# what provides `Utc::now()`, and `domain` must not be able to read a clock at
+# all (.claude/principles.md §6, time is data). Turning the feature off makes
+# that a build-level fact instead of a convention someone has to remember.
+chrono = { version = "0.4", default-features = false, features = ["std"] }
+thiserror = "2"
+proptest = "1"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"

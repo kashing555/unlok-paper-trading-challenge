@@ -254,3 +254,49 @@ is itself the speculative-complexity failure these files warn about, and the
 brief scores scope discipline. The design is settled enough to build from and
 every remaining question is one that implementation answers better than more
 prose. Next commit is Stage A0.
+
+## 2026-08-29 — Stage A0 landed
+
+**One shared money scale of 1e4, not cents.** `design.md` §3 originally said
+minor units; the implementation proved that wrong and the doc was the bug (the
+`docs/README.md` maintenance rule, first time it fired). With `Cash` and `Px` on
+the *same* scale and `Qty` unscaled, `notional = px.raw × qty` is an exact
+multiply — **no division, so no rounding anywhere in the core**. On a cents
+scale it would have been `px_raw × qty / 100`, and `$10.0050 × 1 share` is
+1000.5 cents: representable only by rounding, on every fill, silently. Rounding
+to a currency's minor unit at settlement is a production concern (§16).
+
+**Overflow is a `Result`, and there are no `Add`/`Sub` impls on money.**
+Operator convenience would be paid for in a P&L that is wrong without saying so,
+so arithmetic goes through `checked_*` and the caller handles it. Tested at
+`i64::MAX`.
+
+**`Qty` is non-negative, not strictly positive.** Zero is a real quantity — an
+unfilled order has `filled == 0` and a closed position has `qty == 0`. The
+stricter "an *order* must be for more than zero shares" rule belongs on the
+order constructor (A1), so the errors are separate variants: `NegativeQty` is
+the type invariant, `NonPositiveQty` the order rule. `Qty::checked_sub`
+returning `NegativeQty` is what makes a short position unrepresentable rather
+than merely forbidden.
+
+**Ids are parsed into one canonical form and never repaired into one.**
+`Symbol::parse("aapl")` is an **error**, not an upper-casing. This is the
+double-counting lesson applied: a system that accepted two spellings of one
+account key filed every execution twice and double-counted P&L that never
+happened. Same rule gives `TradingDay` an explicit length check, since
+`parse_from_str` would otherwise accept `2026-8-1` as a second spelling of one
+day and key two leaderboards for the same date.
+
+**The purity rule is compiler-enforced, and that was verified rather than
+assumed.** `chrono` is declared `default-features = false, features = ["std"]`,
+which drops the `clock` feature that provides `Utc::now()`. A probe confirms
+`Utc::now()` inside `domain` fails to compile with `E0599`. `domain`'s entire
+dependency tree is `chrono` + `thiserror`: no async runtime, HTTP, SQL, clock or
+RNG, which is A0's stated close condition.
+
+**A test caught a real parser bug before commit:** `"1."` parsed as `1.0000`
+because `all(is_ascii_digit)` passes vacuously on an empty fraction. Rejected
+now. This is the reject-don't-guess rule earning its place on day one — the
+input was ambiguous and the parser was quietly resolving it.
+
+**A0 is closed:** 18 tests, `clippy -D warnings` clean, `fmt` clean.
