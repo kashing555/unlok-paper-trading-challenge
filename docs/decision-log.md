@@ -464,3 +464,50 @@ The framing is what the audit taught: the failure mode here is not a bad
 decision, it is a file that was correct when written and never revisited. A
 reviewer reads the repository as evidence of how we work, and reads a stale file
 as carelessness — not wrongly.
+
+## 2026-08-29 — Stage A1 landed
+
+**The transition function is total, and exhaustiveness is compiler-enforced —
+verified by breaking it on purpose.** Adding a variant to `OrderState` or to
+`OrderEvent` produces `E0004: non-exhaustive patterns` rather than compiling
+into a silently unhandled case. That is the whole argument for the runtime-enum
+decision (`rust.md`) paying off: the guarantee typestate would have given at the
+type level is instead obtained from the match, in a shape that survives being
+loaded from an event log.
+
+The terminal states are matched as `Filled | Cancelled | Rejected` — a named
+or-pattern, not a `_` arm — so they reject every event without switching the
+check off.
+
+**States carry exactly their own data.** `Acknowledged` cannot exist without a
+broker id; `Rejected` has no filled quantity because there is no such thing.
+`broker_id` is present only on the *live* states: it is needed to cancel an
+order and to correlate reports against it, and once terminal that is history,
+which lives in the event log rather than in the state.
+
+**Orders accumulate `cost`, not an average price.** Two fills at 10.0050 and
+10.0150 sum to exactly 30.0350; storing a rounded average and re-multiplying it
+would drift, and the drift only surfaces as a reconciliation that fails days
+later. This is `code-style.md`'s rational-not-rounded rule applied at the order
+level, and the portfolio (A2) will do the same at the position level.
+
+**Fees are not in the lifecycle.** `cost` is gross notional of fills. Fees belong
+to the portfolio fold, which keeps A1 about *lifecycle* and A2 about
+*accounting* — the two are independent stages precisely so they can be worked on
+separately.
+
+**Rejected: a fill on a terminal order, an empty fill, and an overfill.** Each is
+an error rather than a warning-and-proceed. A fill arriving on a `FILLED` order
+is not an anomaly to log, it is a P&L bug that would otherwise be found during a
+reconciliation days later.
+
+**Replace is cancel-replace and cannot rewrite history.** Replacing an order that
+is 40/100 filled withdraws the residual 60; the 40 stays booked against the
+original, and the replacement is a new order carrying `replaces` (FIX
+`OrigClOrdID`). A replace that loses the race to a complete fill returns
+`Illegal { state: "FILLED" }` rather than silently opening a second position the
+participant never asked for — the error names the state so the caller can decide.
+
+**A1 is closed:** 35 tests including the full 6 × 4 state/event matrix with a
+length assertion that stops a new pair escaping coverage. `clippy -D warnings`
+clean, `fmt` clean.

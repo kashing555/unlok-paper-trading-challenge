@@ -143,6 +143,16 @@ impl Qty {
             .ok_or(DomainError::Overflow("quantity addition"))
     }
 
+    /// `const` twin of [`Qty::checked_sub`], so callers in `const fn` context
+    /// are not forced to duplicate the underflow check.
+    pub const fn checked_sub_const(self, other: Self) -> Result<Self, DomainError> {
+        match self.0.checked_sub(other.0) {
+            Some(n) if n >= 0 => Ok(Self(n)),
+            Some(n) => Err(DomainError::NegativeQty(n)),
+            None => Err(DomainError::Overflow("quantity subtraction")),
+        }
+    }
+
     /// Subtraction that cannot produce a short position — underflow past zero
     /// is a domain error, not a wrap.
     pub fn checked_sub(self, other: Self) -> Result<Self, DomainError> {
