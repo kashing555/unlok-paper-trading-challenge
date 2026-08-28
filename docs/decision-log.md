@@ -359,3 +359,32 @@ the core.
 
 An undocumented deviation is indistinguishable from carelessness, which is the
 whole reason this entry exists.
+
+## 2026-08-29 — pattern lineage
+
+**Raised in review: PoEAA is 2002 and Rust 1.0 is 2015 — do these patterns
+actually fit?** Mostly they do not, and the ones that do not were already
+declined; `rust.md` now says why rather than leaving it to inference.
+
+**Kept, because they were never about objects:** *Money* (a value object with
+exact arithmetic — Java needs final fields, hand-written `equals`/`hashCode` and
+defensive copies to get it, and still cannot stop `money + price` compiling,
+where a Rust newtype is zero-cost and rejects it at compile time — the pattern is
+*stronger* here than where it was written); *event sourcing* (a fold over a log,
+closer to `fold` than to a class); *single-writer/LMAX* (LMAX was Java fighting
+the JVM, and the Disruptor's pre-allocated ring buffer exists largely to dodge GC
+pauses — with no GC and deterministic destruction the architecture is easier in
+Rust, not ported).
+
+**Declined, because they solve problems Rust does not have:** Repository / Unit
+of Work / Identity Map (machinery for a mutable object graph synced to rows — an
+append-only log has no identity map problem); Active Record (a mutable object
+that *is* a row, hiding I/O behind field access); Lazy Load (needs hidden
+mutation behind a getter, which `&self` forbids); Null Object (a workaround for
+`null`); Service Layer with a DI container (constructor injection substituting
+for absent first-class functions and generics).
+
+**The actual lineage of this codebase is ML and Haskell, not enterprise OOP** —
+newtypes, parse-don't-validate, illegal-states-unrepresentable, exhaustive sum
+types, functional core. Rust took its type system from that tradition, which is
+why those transfer natively and the 2002 catalogue mostly does not.

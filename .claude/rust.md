@@ -4,6 +4,39 @@ Extends `principles.md` — the same rules, expressed in the mechanisms this
 language actually gives us. Where a principle can be enforced by the compiler
 rather than by review, that is the version we want.
 
+## Which inherited patterns survive the translation
+
+*PoEAA* is 2002 and Rust 1.0 is 2015, so the question "does this pattern still
+apply?" is a real one and gets a real answer rather than an appeal to authority.
+**We take the language-neutral ideas and decline the OOP workarounds.**
+
+**Taken, because they are about data and not about objects:**
+
+| Pattern | Why it survives |
+|---|---|
+| **Money** (Fowler) | A value object with exact arithmetic. Java needs ceremony for this — final fields, hand-written `equals`/`hashCode`, defensive copies, and it *still* cannot stop `money + price` compiling. Rust makes all of it free: `derive(PartialEq, Eq)`, `Copy`, move semantics, and a newtype that costs zero bytes and **rejects `Money + Px` at compile time**. The pattern is stronger here than where it was written |
+| **Event sourcing** (Fowler) | State as a fold over an append-only log. Nothing object-oriented about it — it is closer to a `fold` than to a class |
+| **Single-writer / LMAX** (Thompson, Fowler) | LMAX was Java *fighting the JVM* — the Disruptor's pre-allocated ring buffer exists largely to dodge GC pauses. Rust has no GC and deterministic destruction, so the architecture is **easier** here, not ported |
+
+**Declined, because they solve problems Rust does not have** — most already
+declined in `principles.md` §7, and this is why:
+
+| Pattern | Why it does not translate |
+|---|---|
+| **Repository / Unit of Work / Identity Map** | Machinery for a mutable object graph synced to rows. An append-only event log has no identity map problem to solve |
+| **Active Record** | Needs a mutable object that *is* a row. Fights ownership, and hides I/O behind a field access |
+| **Lazy Load** | Requires hidden mutation behind a getter — exactly what `&self` forbids |
+| **Null Object / Special Case** | Workarounds for `null`. Rust has `Option` and sum types |
+| **Service Layer + DI container** | Constructor injection substitutes for the absence of first-class functions and generics. Rust has both |
+
+**The lineage we actually draw on is ML and Haskell, not enterprise OOP** —
+newtypes (Haskell), parse-don't-validate (King, Haskell), illegal states
+unrepresentable (Minsky, OCaml), exhaustive sum types, functional core. Those
+are §3's content, and they predate Rust while fitting it natively, because Rust
+took its type system from the same tradition.
+
+The two Fowler patterns we keep are the two that were never really about objects.
+
 ## Crate or module?
 
 **A new crate when the boundary must be enforced**, when it needs a different
