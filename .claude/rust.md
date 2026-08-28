@@ -29,11 +29,23 @@ declined in `principles.md` §7, and this is why:
 | **Null Object / Special Case** | Workarounds for `null`. Rust has `Option` and sum types |
 | **Service Layer + DI container** | Constructor injection substitutes for the absence of first-class functions and generics. Rust has both |
 
-**The lineage we actually draw on is ML and Haskell, not enterprise OOP** —
-newtypes (Haskell), parse-don't-validate (King, Haskell), illegal states
-unrepresentable (Minsky, OCaml), exhaustive sum types, functional core. Those
-are §3's content, and they predate Rust while fitting it natively, because Rust
-took its type system from the same tradition.
+**The lineage we actually draw on is the ML family, not enterprise OOP.** ML
+here is *Meta Language* — Robin Milner, Edinburgh, 1973 — and its descendants
+Standard ML, OCaml and F#, alongside Haskell. Nothing to do with machine
+learning; the acronym collision is unfortunate and worth spelling out before a
+reviewer trips on it.
+
+What Rust inherited from that tradition is most of what this design leans on:
+**sum types** (a Rust `enum` is an ML datatype carrying data, not a C enum),
+**exhaustive pattern matching** (why a wildcard arm in the transition match is a
+review failure), **`Option`/`Result` instead of null and exceptions**,
+Hindley–Milner-style **type inference**, and **immutability by default**. The
+first `rustc` was itself written in OCaml, until it self-hosted in 2011.
+
+So: newtypes (Haskell), parse-don't-validate (King, Haskell), illegal states
+unrepresentable (Minsky, OCaml), exhaustive sum types, functional core — §3's
+content. All of it predates Rust and fits it natively, because Rust took its
+type system from the same place.
 
 The two Fowler patterns we keep are the two that were never really about objects.
 

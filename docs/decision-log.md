@@ -384,7 +384,10 @@ mutation behind a getter, which `&self` forbids); Null Object (a workaround for
 `null`); Service Layer with a DI container (constructor injection substituting
 for absent first-class functions and generics).
 
-**The actual lineage of this codebase is ML and Haskell, not enterprise OOP** —
+**The actual lineage of this codebase is the ML family, not enterprise OOP** —
+ML meaning *Meta Language* (Milner, 1973) and its descendants OCaml, Standard ML
+and F#, plus Haskell; **not machine learning**, an acronym collision worth
+spelling out before a reviewer trips on it —
 newtypes, parse-don't-validate, illegal-states-unrepresentable, exhaustive sum
 types, functional core. Rust took its type system from that tradition, which is
 why those transfer natively and the 2002 catalogue mostly does not.
