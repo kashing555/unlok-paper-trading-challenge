@@ -12,14 +12,27 @@ by an append-only SQLite event log. A mock broker runs inside the same process
 and emits execution reports. A Vue cockpit consumes the API. Long-only equities,
 one currency, no leverage — the simplifications the brief permits.
 
+```mermaid
+flowchart TD
+    C["<b>Command</b><br/>an intent — may be refused"]
+    D["<b>decide</b><br/>pure domain, then the broker"]
+    E["<b>Events</b><br/>facts — already happened"]
+    L[("<b>Event log</b><br/>append-only · the source of truth")]
+    P["<b>Projections</b><br/>positions · cash · P&L · rankings"]
+
+    C --> D
+    D -->|"refused → zero events"| C
+    D --> E
+    E -->|"persist first"| L
+    L -->|"then apply"| P
+    L -.->|"replay rebuilds all of it"| P
+
+    style L stroke-width:2px
 ```
-participant ─┬─▶ submit / cancel / replace ─▶ OMS ─▶ mock broker
-             │                                 │         │
-             │                                 ▼         ▼
-             └────────── read ◀── projections ◀── EVENT LOG (append-only)
-                                     ▲
-market data ──── mark update ────────┘
-```
+
+Read the two labelled edges together: **persist first, then apply**. Applying
+before persisting would leave state the log cannot reproduce if the process died
+in between — which is the divergence the log exists to prevent.
 
 Everything a participant can observe — orders, positions, cash, P&L, rankings —
 is a **projection of the event log**. Nothing is maintained alongside it.
@@ -73,6 +86,26 @@ modelled; it is a production concern (§16).
 
 States are exactly those the brief names. Transitions are an explicit table;
 anything unlisted is rejected and leaves state untouched.
+
+```mermaid
+stateDiagram-v2
+    [*] --> NEW: submit
+    NEW --> ACKNOWLEDGED: broker ack
+    NEW --> REJECTED: broker reject
+    NEW --> CANCELLED: cancel (before ack)
+    ACKNOWLEDGED --> PARTIALLY_FILLED: fill
+    ACKNOWLEDGED --> FILLED: one fill completes it
+    ACKNOWLEDGED --> CANCELLED: cancel
+    PARTIALLY_FILLED --> PARTIALLY_FILLED: fill
+    PARTIALLY_FILLED --> FILLED: final fill
+    PARTIALLY_FILLED --> CANCELLED: cancel — keeps filled qty
+    FILLED --> [*]
+    CANCELLED --> [*]
+    REJECTED --> [*]
+```
+
+`NEW --> CANCELLED` is the window our own order id exists for: the order is live
+at our end and the broker has not given us an id yet.
 
 | From | Event | To |
 |---|---|---|

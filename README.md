@@ -67,6 +67,14 @@ crates/
   api/       App (engine + log), Axum HTTP, `ptc` server, `ptc-demo` CLI
 ```
 
+```mermaid
+flowchart LR
+    C["Command"] --> D["decide"] --> E["Events"]
+    E -->|"persist first"| L[("Event log")]
+    L -->|"then apply"| P["Projections"]
+    L -.->|"replay"| P
+```
+
 **Dependencies point inward, and it is a compile error when they do not** — a
 crate cannot import what is not in its `Cargo.toml`. That is why these are
 crates rather than modules. `domain`'s entire dependency tree is `chrono` and
