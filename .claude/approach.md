@@ -33,7 +33,7 @@ The brief says the ranking must be deterministic. That means we can assert it:
 
 - Sorts end in a **total-order** tiebreak, so no two participants can compare
   equal. Test that shuffling input order does not change output ranking.
-- Money is integer minor units. No float accumulates in a P&L path.
+- Money is scaled integers. No float accumulates in a P&L path.
 - The mock broker is seeded. Same seed, same execution reports, every run.
 - Replaying the event log reproduces state exactly. That is a test, not a claim.
 

@@ -161,9 +161,11 @@ is what makes the test suite meaningful and the demo repeatable.
 - **Explicit mode (default).** Executions are driven through the API:
   `POST /broker/executions` with quantity and price. Total control, used by
   every test.
-- **Auto mode.** A seeded fill policy acks, then emits *n* partials to
-  completion at or better than the limit price. `Rng` is passed in, never
-  ambient — no `thread_rng` anywhere in the domain.
+- **Auto mode.** A seeded policy slices the remaining quantity — each
+  execution takes at least `1/max_slices` of the order's original size, so any
+  one order completes in at most `max_slices` fills. Always at the order's own
+  limit price: no improvement is modelled, so a fill is never better than asked
+  and never worse. The `Rng` is owned and seeded; `thread_rng` appears nowhere.
 - **Reject policy.** Configurable triggers (unknown symbol, insufficient cash,
   size cap) exercise the `REJECTED` path.
 
@@ -244,12 +246,15 @@ crates/
                 transition table, the position fold — pure, no async, no I/O
   broker/       mock broker: seeded fill policy, execution report generation
   scoring/      daily results, leaderboard, ladder — pure, no async, no I/O
+  engine/       command → decide → events → apply, the single writer
   store/        SQLite append-only event log + projection rebuild
   api/          application assembly (`App`: engine + log + write-ahead),
                 Axum HTTP and DTOs, the `ptc` server and the `ptc-demo` CLI
 ui/             Vue 3 + TS + Vite cockpit — beyond the brief, see README
-tests/          integration: full trading day, replay determinism
 ```
+
+Integration tests live inside the crate they exercise (`engine/tests/`,
+`store/tests/`, `api/tests/`) — there is no top-level `tests/`.
 
 ```mermaid
 flowchart TD

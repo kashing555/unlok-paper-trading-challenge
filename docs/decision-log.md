@@ -957,3 +957,46 @@ that *is* present, so it is not a no-op. Plus `rust-toolchain.toml` pinning
 than an error.
 
 Net: 3,186 → 3,095 lines of non-comment source, 98 → 102 tests.
+
+## 2026-08-29 — full audit pass: fifteen doc-vs-code corrections, two deletions
+
+A line-by-line walkthrough of every doc against the code it describes, under the
+repo's own rule that the doc is the bug. All findings were claims that were true
+when written and outgrown by later work — the exact failure mode `CLAUDE.md`'s
+maintenance section names.
+
+**Counts and mechanisms:** the README said 98 tests in three places (102 since
+the review pass). `design.md` §6 still described the broker's *old* slicing
+("emits n partials… at or better than the limit price") — the mechanism is now
+chunk-based per order, and fills are exactly at the limit, never better, which
+§6 itself said two bullets later. §10's layout tree was **missing the `engine`
+crate entirely** and listed a top-level `tests/` that has never existed.
+
+**The money vocabulary:** four files still said "integer minor units (cents)"
+— `code-style.md` most prominently, in its section header. The scale has been
+1e4 since A0, and that correction had reached `design.md` but not the files
+that cite it. All now say scaled integers, with the shared-scale reasoning.
+
+**`principles.md`'s dependency table** claimed `domain` may use `rust_decimal`
+— it never has; that dependency is `scoring`'s. The deletion test still told
+readers to delete a `cli/` crate that was folded into `api` before C2 shipped.
+
+**`rust.md` disagreed with the code it prescribes, twice, ironically:** its
+`OrderState` example stored `avg_px` in the fill states — the *stored rounded
+average* that `code-style.md` forbids — where the real enum accumulates `cost`.
+And its `Qty` example rejected zero, where the real constructor allows it
+because an unfilled order has `filled == 0`. Both examples now show the real
+code, and each picked up the sentence explaining why the real shape is right.
+Also corrected there: a `Clock` trait that has never existed (time crosses as a
+`Timestamp` value — a value needs no port), an `anyhow` policy for a dependency
+we never took, `engine` missing from the thiserror list, and a proptest claim
+describing tests that were never written rather than the two that were.
+
+**Deleted:** two Pinia getters (`symbols`, `marks`) no component ever read —
+dead on arrival in the cockpit commit — and the phantom claims above.
+
+**Verified clean in the same pass:** `forbid(unsafe_code)` in all eight crate
+roots and binaries, workspace lints inherited by all six crates, zero
+TODO/FIXME markers, no orphaned docs, every markdown link resolving, `check.sh`
+green, the demo byte-identical across two runs, `vue-tsc` and the UI build
+clean.

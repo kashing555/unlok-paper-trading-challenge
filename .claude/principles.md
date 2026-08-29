@@ -36,8 +36,8 @@ knows the outside exists.
 
 | Crate | May depend on | Must never know about |
 |---|---|---|
-| `domain` | *nothing* (std + `rust_decimal` only) | async, HTTP, SQL, time, RNG, config |
-| `scoring` | `domain` | async, HTTP, SQL, time, RNG |
+| `domain` | *nothing of ours* — std, `chrono` (clock feature off), `thiserror` | async, HTTP, SQL, clock, RNG, config |
+| `scoring` | `domain`, plus `rust_decimal` for returns | async, HTTP, SQL, clock, RNG |
 | `broker` | `domain` | HTTP, SQL — RNG only via an injected seed |
 | `engine` | `domain`, `broker`, `scoring` | HTTP, SQL, CLI, UI |
 | `store` | `domain`, `engine` (for the event type it persists) | HTTP, `scoring`, `broker` |
@@ -122,7 +122,8 @@ for the strongest one everywhere is how a codebase becomes unreadable.
 
 Coupling is not a feeling. Each of these is a check that either passes or fails:
 
-- **The deletion test.** Delete `ui/`, then `api/`, then `cli/`. Does everything
+- **The deletion test.** Delete `ui/`, then `api/` — the CLI is a second
+  binary in that crate, so it goes with it. Does everything
   the brief scores still compile and test? If not, scored logic has leaked into
   transport. *(This is why the README can promise the service is complete with
   `ui/` deleted — it is a property we can actually run.)*
@@ -256,8 +257,8 @@ does not log a warning and continue. This is the documented override of
 `baseline.md` §2: in accounting, the impossible scenario is precisely the one
 worth handling, because it is silent otherwise.
 
-**Money is exact.** Integer minor units, rationals for averages, decimal strings
-on the wire. No float touches a P&L path. See `code-style.md`.
+**Money is exact.** Scaled integers, a cost-and-quantity rational for averages,
+decimal strings on the wire. No float touches a P&L path. See `code-style.md`.
 
 **Time is data.** Every event carries the timestamp it happened at, supplied by
 the caller. Nothing in the core reads a clock. Beyond testability, this is what

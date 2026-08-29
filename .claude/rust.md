@@ -80,14 +80,24 @@ Constructors are fallible and fields are private, so an invalid value **cannot
 exist** rather than existing-but-checked ([King](https://lexi-lambda.github.io/blog/2019/11/05/parse-don-t-validate/)):
 
 ```rust
-pub struct Qty(i64);                       // field private — no `Qty(-5)` from outside
+pub struct Qty(i64);                     // field private — no `Qty(-5)` from outside
 
 impl Qty {
-    pub fn new(n: i64) -> Result<Self, DomainError> {
-        (n > 0).then_some(Self(n)).ok_or(DomainError::NonPositiveQty(n))
+    pub fn new(shares: i64) -> Result<Self, DomainError> {
+        if shares >= 0 {
+            Ok(Self(shares))
+        } else {
+            Err(DomainError::NegativeQty(shares))
+        }
     }
 }
 ```
+
+Note the invariant is `>= 0`, not `> 0`: zero is a *legal* quantity — an
+unfilled order has `filled == 0` and a closed position has `qty == 0`. The
+stricter "an **order** must be for more than zero shares" rule lives on the
+order constructor, which is the one place it is actually true. Each rule sits
+where it holds, instead of one type over-constraining every use.
 
 Validation checks and moves on, leaving the illegal value representable and the
 check re-runnable (and forgettable) downstream. Parsing produces a type that
@@ -116,15 +126,18 @@ nonsense ([Minsky](https://blog.janestreet.com/effective-ml-revisited/)):
 pub enum OrderState {
     New,
     Acknowledged { broker_id: BrokerOrderId },
-    PartiallyFilled { broker_id: BrokerOrderId, filled: Qty, avg_px: Px },
-    Filled { filled: Qty, avg_px: Px },
-    Cancelled { filled: Qty },              // may be non-zero — cancel after partial
+    PartiallyFilled { broker_id: BrokerOrderId, filled: Qty, cost: Money },
+    Filled { filled: Qty, cost: Money },
+    Cancelled { filled: Qty, cost: Money }, // may be non-zero — cancel after partial
     Rejected { reason: RejectReason },
 }
 ```
 
 The data each state carries is the data that state actually has. `Filled` has no
-`reject_reason` because there is no such thing.
+`reject_reason` because there is no such thing. And the fills accumulate `cost`,
+not an average price — a stored, rounded average re-multiplied later is the
+drift bug `code-style.md` exists to prevent, so it is not representable here
+either.
 
 ## Typestate vs runtime enum — the order lifecycle
 
@@ -164,10 +177,12 @@ one place exhaustiveness is doing real work, and a wildcard silently disables it
 
 ## Errors
 
-- **`thiserror` in libraries** (`domain`, `scoring`, `store`, `broker`) — typed
+- **`thiserror` in libraries** (`domain`, `scoring`, `broker`, `engine`, `store`) — typed
   and matchable, so a caller can distinguish "rejected" from "broken".
-- **`anyhow` in binaries only** (`api`, `cli`), where the answer is a log line
-  and an exit code.
+- **Binaries return `Box<dyn Error>` from `main`**, where the answer is a
+  message and a non-zero exit. `anyhow` was considered and declined: at two
+  small binaries it is a dependency that buys a prettier backtrace and nothing
+  else — `principles.md` §7's forwarding-layer test, applied to a crate.
 - **Distinguish a bug from an expected failure.** A rejected order is a
   `Result` — it is a normal outcome of a competition. A negative position is a
   **bug**: `debug_assert!` plus a hard error, never a warning. This is
@@ -179,8 +194,10 @@ one place exhaustiveness is doing real work, and a wildcard silently disables it
 
 ## Traits only at ports
 
-Traits exist at the seams the dependency table names — `Broker`, `EventLog`,
-`Clock` — and nowhere else.
+Traits exist at the seams the dependency table names — `Broker` and `EventLog`
+— and nowhere else. There is deliberately **no `Clock` trait**: time crosses the
+boundary as a `Timestamp` argument, and a value needs no port. A trait would be
+an abstraction over something the core is not allowed to do in the first place.
 
 - **Static dispatch by default** (generics); `dyn` where a port is swapped at
   runtime or monomorphisation bloat is real.
@@ -220,9 +237,11 @@ identity.
   find them.
 - **Integration tests in `tests/`**, public API only — the full-trading-day and
   replay-determinism tests from `build-order.md`.
-- **Property tests (`proptest`) for the money invariants**: no associativity
-  loss, round-trip through the wire format, average cost never drifting from the
-  rational.
+- **Property tests (`proptest`) where the input space is the point**:
+  display→parse round-trips across the full `Money` range, and `notional`
+  checked against `i128` reference arithmetic, so a scale bug cannot hide.
+  Fixed-case invariants — the wire round-trip, a closed position keeping zero
+  basis — stay ordinary unit tests, because one well-chosen case pins them.
 - **Test names are sentences.** `cancel_after_partial_fill_retains_filled_qty`,
   not `test_cancel_2`. They are read by the reviewer as documentation.
 

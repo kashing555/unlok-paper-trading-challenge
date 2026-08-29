@@ -122,7 +122,7 @@ test rather than a claim.
 
 - **Total order.** Every sort ends in `participant_id`. No two rows compare
   equal, so no ordering is left to the sort's discretion.
-- **No float in a ranking input.** Values and P&L are integer minor units.
+- **No float in a ranking input.** Values and P&L are scaled integers.
   `daily_return` is a `Decimal` at fixed scale, computed once from integer
   inputs and never re-derived through a float.
 - **No hash iteration.** Participants are collected into a `Vec` and sorted

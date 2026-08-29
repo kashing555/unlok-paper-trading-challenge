@@ -18,23 +18,6 @@ export const useCockpit = defineStore('cockpit', {
     events: 0,
   }),
 
-  getters: {
-    /** Symbols the competition currently has a position or an order in. */
-    symbols(state): string[] {
-      const set = new Set<string>()
-      for (const o of state.orders) set.add(o.symbol)
-      for (const p of Object.values(state.portfolios))
-        for (const pos of p.positions) set.add(pos.symbol)
-      return [...set].sort()
-    },
-    marks(state): Record<string, string> {
-      const out: Record<string, string> = {}
-      for (const p of Object.values(state.portfolios))
-        for (const pos of p.positions) if (pos.mark) out[pos.symbol] = pos.mark
-      return out
-    },
-  },
-
   actions: {
     async refresh() {
       try {

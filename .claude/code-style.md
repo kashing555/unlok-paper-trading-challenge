@@ -2,15 +2,17 @@
 
 Extends `baseline.md` §3 — "match existing style" means the following here.
 
-## Money and prices are integer minor units. Never float.
+## Money and prices are scaled integers. Never float.
 
-Money, prices, notionals and P&L are `i64` in minor units (cents) behind newtypes
-(`Money`, `Px`, `Qty`), constructed at the edge and never unwrapped into `f64`
-inside a calculation. Serialise as a decimal string, not a JSON number — a
-float round-trip through JSON is how a cent goes missing.
+Money, prices, notionals and P&L are `i64` at one shared 1e4 scale behind
+newtypes (`Money`, `Px`; `Qty` is unscaled whole shares), constructed at the
+edge and never unwrapped into `f64` inside a calculation. The shared scale is
+what makes `notional = px × qty` an exact multiply — no division, so no rounding
+in the core (`docs/design.md` §3). Serialise as a decimal string, not a JSON
+number — a float round-trip through JSON is how a cent goes missing.
 
 Average cost is the one genuinely fractional quantity. Hold it as a rational
-(`total_cost: i64, total_qty: i64`) and divide only for display, rather than
+(the position's `cost` over its `qty`) and divide only for display, rather than
 storing a rounded average and re-multiplying it — that path drifts, silently,
 and only shows up as a P&L that fails to reconcile at the end of the week.
 
@@ -73,7 +75,7 @@ Never invent a synonym for a term the brief already uses. Never abbreviate one.
 | `daily_pnl` / `daily_return` / `closing_value` | brief | "daily P&L", "daily return percentage", "closing portfolio value" |
 | `Leaderboard` / `Ladder` | brief | "daily leaderboard", "overall competition ladder" |
 | `OrderState::{New, Acknowledged, PartiallyFilled, Filled, Cancelled, Rejected}` | brief | the six states, verbatim |
-| `ExecutionReport` | brief + FIX | "execution reports"; FIX `MsgType=8` |
+| `Execution` (broker) | brief + FIX | "execution reports"; FIX `MsgType=8` |
 | `TradingDay` | brief | "trading day" |
 | `ClientOrderId` | FIX | `ClOrdID`, tag 11 |
 | `BrokerOrderId` | FIX | `OrderID`, tag 37 |
