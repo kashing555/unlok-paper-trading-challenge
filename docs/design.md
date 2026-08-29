@@ -251,6 +251,26 @@ ui/             Vue 3 + TS + Vite cockpit — beyond the brief, see README
 tests/          integration: full trading day, replay determinism
 ```
 
+```mermaid
+flowchart TD
+    CL["curl · ptc-demo · cockpit"] --> API["<b>api</b><br/>handlers · DTOs · one mutex"]
+    API --> ENG["<b>engine</b><br/>decide → events → apply"]
+    ENG -->|port| BRK["<b>broker</b><br/>seeded, deterministic"]
+    ENG -->|port| ST["<b>store</b><br/>SQLite event log"]
+    ENG --> CORE["<b>domain + scoring</b><br/>pure — no async, HTTP, SQL, clock or RNG"]
+
+    style CORE stroke-width:2px
+```
+
+Every arrow means *depends on*, and **nothing points back up**. `domain`'s whole
+dependency tree is `chrono` and `thiserror`, with `chrono`'s `clock` feature off
+— so `Utc::now()` does not compile there. CI asserts that tree on every push.
+
+*One caveat the diagram flattens:* `store` persists `engine`'s event type, so
+that arrow really runs the other way, which is why `App` lives in `api`. The
+stricter shape — `EventLog` defined as a port **in** `engine` — is §16's
+production delta.
+
 `domain` and `scoring` are the scored content and hold no I/O — they are unit
 testable without standing up a server. If a rule needs a running server to test,
 it is in the wrong crate.
