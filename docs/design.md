@@ -166,8 +166,10 @@ is what makes the test suite meaningful and the demo repeatable.
   one order completes in at most `max_slices` fills. Always at the order's own
   limit price: no improvement is modelled, so a fill is never better than asked
   and never worse. The `Rng` is owned and seeded; `thread_rng` appears nowhere.
-- **Reject policy.** Configurable triggers (unknown symbol, insufficient cash,
-  size cap) exercise the `REJECTED` path.
+- **Reject policy.** Configurable broker-side triggers (unknown symbol, size
+  cap) exercise the `REJECTED` path. Cash and position sufficiency are **not**
+  broker triggers: the broker cannot see a participant's book, so those are
+  engine pre-trade refusals — the order is never submitted at all.
 
 Marketable-limit only. No book, no queue position, no price-time priority —
 those are a different exercise and the brief does not ask for them.
@@ -181,12 +183,16 @@ buy  qty q @ px p, fee f:   cash -= q*p + f
                             total_cost += q*p + f      (fees capitalised into basis)
                             total_qty  += q
 
-sell qty q @ px p, fee f:   avg        = total_cost / total_qty     (rational)
-                            realized  += q*(p - avg) - f
+sell qty q @ px p, fee f:   removed    = total_cost × q / total_qty  (i128, exact
+                            realized  += q*p - removed - f            on the close)
                             cash      += q*p - f
-                            total_cost -= q*avg
+                            total_cost -= removed
                             total_qty  -= q
 ```
+
+Written division-free on purpose: `removed = cost·q/qty` is the exact-rational
+form of "q at the average", and the code computes it that way rather than via a
+derived `avg` — the average appears only at display time.
 
 - **Unrealized** = `total_qty * (mark - avg)`, marks from the last price update.
 - **Total portfolio value** = `cash + Σ(qty × mark)`.
@@ -269,7 +275,9 @@ flowchart TD
 
 Every arrow means *depends on*, and **nothing points back up**. `domain`'s whole
 dependency tree is `chrono` and `thiserror`, with `chrono`'s `clock` feature off
-— so `Utc::now()` does not compile there. CI asserts that tree on every push.
+— so `Utc::now()` does not compile there. CI guards that tree on every push
+with a denylist (fails if tokio, axum, hyper, rusqlite, reqwest, rand or serde
+ever appear in it).
 
 *One caveat the diagram flattens:* `store` persists `engine`'s event type, so
 that arrow really runs the other way, which is why `App` lives in `api`. The

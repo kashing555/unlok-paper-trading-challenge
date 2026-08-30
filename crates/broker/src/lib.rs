@@ -1,7 +1,9 @@
 //! A mock broker that generates execution reports.
 //!
 //! **Deterministic by construction.** The RNG is seeded and owned; `thread_rng`
-//! appears nowhere. The same seed and the same order sequence produce
+//! appears nowhere. `ChaCha8Rng` specifically, not `StdRng`: `StdRng` is
+//! documented as free to change algorithm between `rand` releases, which would
+//! silently break same-seed replay on an upgrade — ChaCha8's stream is pinned. The same seed and the same order sequence produce
 //! byte-identical executions on every run and every machine, which is what
 //! makes the tests downstream of it mean anything.
 //!

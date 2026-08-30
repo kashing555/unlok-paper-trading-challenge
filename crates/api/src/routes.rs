@@ -244,8 +244,10 @@ pub async fn update_marks(
     State(state): State<AppState>,
     Json(req): Json<Vec<dto::MarkUpdate>>,
 ) -> Result<Json<Value>, AppError> {
-    // Parse every entry before applying any: a batch with one bad price
-    // updates nothing rather than half the symbols.
+    // Parse every entry before applying any, so a batch with one malformed
+    // price updates nothing. The boundary is parsing: past it, each mark is
+    // its own command, so a store failure mid-batch could still land a prefix
+    // — acceptable for marks (each is independently true), not for fills.
     let parsed = req
         .iter()
         .map(|m| Ok((symbol(&m.symbol)?, price(&m.px)?)))

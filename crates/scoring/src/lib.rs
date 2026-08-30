@@ -110,7 +110,8 @@ fn ret(pnl: Money, base: Money) -> Decimal {
     (Decimal::from(pnl.raw()) / Decimal::from(base.raw())).round_dp(RETURN_SCALE)
 }
 
-/// Close a day: turn raw values into results. Order-independent.
+/// Close a day: turn raw values into results. Row order follows input order;
+/// the *ranked* output downstream is input-order-independent (tested).
 pub fn daily_results(inputs: Vec<DayInput>) -> Result<Vec<DailyResult>, ScoringError> {
     let mut seen = std::collections::BTreeSet::new();
     let mut out = Vec::with_capacity(inputs.len());

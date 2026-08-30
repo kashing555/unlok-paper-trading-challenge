@@ -189,9 +189,6 @@ fn parse_fixed(field: &'static str, s: &str, allow_negative: bool) -> Result<i64
     {
         return Err(parse_err());
     }
-    if body.split('.').count() > 2 {
-        return Err(parse_err());
-    }
     if frac_part.len() > SCALE_DIGITS {
         return Err(DomainError::TooManyDecimals {
             field,

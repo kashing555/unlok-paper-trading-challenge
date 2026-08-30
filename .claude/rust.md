@@ -159,7 +159,11 @@ have both mechanisms and the guarantee of neither.
 exhaustiveness enforced by `match` and **no wildcard arm**:
 
 ```rust
-pub fn apply(state: &OrderState, ev: &OrderEvent) -> Result<OrderState, TransitionError>
+pub fn apply(
+    state: &OrderState,
+    ordered: Qty,          // the order's total — decides partial vs complete
+    event: &OrderEvent,
+) -> Result<OrderState, TransitionError>
 ```
 
 The compiler still catches the mistake that actually happens — adding a state or

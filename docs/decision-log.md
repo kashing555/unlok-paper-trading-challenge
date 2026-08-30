@@ -1000,3 +1000,37 @@ roots and binaries, workspace lints inherited by all six crates, zero
 TODO/FIXME markers, no orphaned docs, every markdown link resolving, `check.sh`
 green, the demo byte-identical across two runs, `vue-tsc` and the UI build
 clean.
+
+## 2026-08-30 — the study-report audit: nine findings from seven fresh readers
+
+Seven independent deep-read passes over the whole repository (one per
+subsystem, made while producing the interview study report) surfaced nine
+issues no earlier audit had caught — each a claim or behaviour one notch out of
+line with the repo's own rules.
+
+**Behaviour fixed:** the env config was strict for `PTC_SYMBOLS`/`PTC_MAX_QTY`
+but silently repaired the other three (`PTC_SEED=abc` became 42) — half the
+config obeyed the documented fallible rationale and half did not; all five are
+now strict via one `parse_var` helper, verified live. The money parser carried
+a provably unreachable second-dot check (any second `.` already fails the
+all-digits test) — deleted, per the no-impossible-scenarios rule that governs
+non-accounting paths.
+
+**Docs corrected to match code:** `design.md` §6 listed *insufficient cash*
+among broker reject triggers (the broker cannot see a book; cash is an engine
+pre-trade refusal); §7's sell maths was written in the avg-form the code's own
+comments decline (now division-free, matching `cost_removed`); the "CI asserts
+that tree" phrasing (it is a denylist guard); `rust.md`'s transition-signature
+sketch was missing the `ordered: Qty` parameter; `build-order.md` A4 still said
+`EventLog` is defined in the engine (it lives in `store`; that is why `App` is
+in `api`). `error.rs`'s comment overstated the Overflow→500 mapping (parse-time
+overflow is 400; only ledger overflow reaches the catch-all). The `update_marks`
+comment now states its atomicity boundary precisely (parse-atomic; past that,
+each mark is its own transaction — fine for marks, never for fills).
+`daily_results`' "order-independent" doc line now says what is actually
+invariant (the ranked output, not row order).
+
+**Documented for the first time:** why `ChaCha8Rng` and not `StdRng` — `StdRng`
+may change algorithm between `rand` releases, which would silently break
+same-seed replay on an upgrade; ChaCha8's stream is pinned. The argument
+existed only in a head; now it is in the broker's crate docs.

@@ -71,8 +71,10 @@ nowhere.
 
 ### A4 · Engine assembly
 
-Command → decide → events → apply, behind the single-writer loop. Ports for
-`Broker` and `EventLog` are defined here; the log is in-memory for now.
+Command → decide → events → apply, behind the single-writer loop. The `Broker`
+port is defined here. (`EventLog` ended up defined in `store` — the wrong side
+of the seam, recorded as a production delta in the README; the consequence is
+that `App`, which needs both, lives in `api`.)
 
 **Closes when:** an in-process test drives a **full trading day** — create
 participants, submit, partially fill, cancel, replace, fill, update marks, read

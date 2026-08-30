@@ -36,11 +36,12 @@ impl Config {
             // ":memory:" keeps a run entirely ephemeral, which is what the
             // tests and the demo want.
             db: var("PTC_DB").unwrap_or_else(|| "ptc.sqlite".into()),
-            seed: var("PTC_SEED").and_then(|v| v.parse().ok()).unwrap_or(42),
-            fee_bps: var("PTC_FEE_BPS").and_then(|v| v.parse().ok()).unwrap_or(0),
-            max_slices: var("PTC_MAX_SLICES")
-                .and_then(|v| v.parse().ok())
-                .unwrap_or(3),
+            // Every variable is strict: absent → default, present-but-garbage →
+            // a clean error. `PTC_SEED=abc` silently becoming 42 would be the
+            // one place this config repairs input instead of rejecting it.
+            seed: parse_var(&var, "PTC_SEED", 42)?,
+            fee_bps: parse_var(&var, "PTC_FEE_BPS", 0)?,
+            max_slices: parse_var(&var, "PTC_MAX_SLICES", 3)?,
             // Broker-side limits, off by default so a first run is
             // frictionless — but configurable, **because REJECTED is one of the
             // six states the brief requires**. Without a way to switch a limit
@@ -67,6 +68,20 @@ impl Config {
                 ),
             },
         })
+    }
+}
+
+/// Absent → `default`; present → must parse, or the whole config fails.
+fn parse_var<T: std::str::FromStr>(
+    var: &impl Fn(&str) -> Option<String>,
+    key: &str,
+    default: T,
+) -> Result<T, String> {
+    match var(key) {
+        None => Ok(default),
+        Some(v) => v
+            .parse()
+            .map_err(|_| format!("{key}: {v:?} is not a valid value")),
     }
 }
 

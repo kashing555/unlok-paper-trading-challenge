@@ -3,9 +3,10 @@ use thiserror::Error;
 /// Every way a domain value can refuse to be constructed or combined.
 ///
 /// Typed rather than stringly (`.claude/rust.md`) so a caller can distinguish a
-/// rejected input from a broken invariant: the API layer maps `Parse*` and
-/// `NonPositive*` to a 400 and `Overflow` to a 500, which it could not do
-/// against a message.
+/// rejected input from a broken invariant — which it could not do against a
+/// message. The API maps any `DomainError` raised while parsing a request to
+/// 400; an `Overflow` that surfaces *inside* the engine's accounting reaches
+/// the 500 catch-all instead, because there it is a bug, not bad input.
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum DomainError {
     /// The `Qty` type invariant: long-only, so shares are never negative.
