@@ -32,7 +32,7 @@ async function autoFill(id: number): Promise<OrderView> {
   let last: OrderView | undefined
   for (let i = 0; i < 10; i++) {
     last = await api.execute(id)
-    say(`fill    #${id} → ${last.state} ${last.filledQty}/${last.qty}`)
+    say(`fill    #${id} → ${last.state} ${last.filledQty}/${last.qty} · fees ${last.fees}`)
     await pause()
     if (TERMINAL.includes(last.state)) return last
   }

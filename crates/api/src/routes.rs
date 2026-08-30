@@ -105,7 +105,10 @@ pub async fn portfolio(
     let app = state.lock().await;
     let engine = app.engine();
 
-    let orders = engine.working_orders_of(&id).map(Into::into).collect();
+    let orders = engine
+        .working_orders_of(&id)
+        .map(|o| dto::order_view(o, engine.fee_of(o.id)))
+        .collect();
     Ok(Json(dto::portfolio_view(
         engine.portfolio(&id)?,
         engine.marks(),
@@ -122,7 +125,10 @@ pub async fn participant_orders(
     let engine = app.engine();
     engine.portfolio(&id)?; // 404 for an unknown participant, not an empty list
 
-    let orders: Vec<dto::OrderView> = engine.orders_of(&id).map(Into::into).collect();
+    let orders: Vec<dto::OrderView> = engine
+        .orders_of(&id)
+        .map(|o| dto::order_view(o, engine.fee_of(o.id)))
+        .collect();
     Ok(Json(json!({ "orders": orders })))
 }
 
@@ -151,12 +157,20 @@ pub async fn submit_order(
             limit_px,
         },
     )?;
-    Ok((StatusCode::CREATED, Json(app.engine().order(id)?.into())))
+    let engine = app.engine();
+    Ok((
+        StatusCode::CREATED,
+        Json(dto::order_view(engine.order(id)?, engine.fee_of(id))),
+    ))
 }
 
 pub async fn list_orders(State(state): State<AppState>) -> Json<Value> {
     let app = state.lock().await;
-    let orders: Vec<dto::OrderView> = app.engine().orders().map(Into::into).collect();
+    let engine = app.engine();
+    let orders: Vec<dto::OrderView> = engine
+        .orders()
+        .map(|o| dto::order_view(o, engine.fee_of(o.id)))
+        .collect();
     Json(json!({ "orders": orders }))
 }
 
@@ -165,7 +179,9 @@ pub async fn get_order(
     Path(id): Path<u64>,
 ) -> Result<Json<dto::OrderView>, AppError> {
     let app = state.lock().await;
-    Ok(Json(app.engine().order(ClientOrderId::new(id))?.into()))
+    let engine = app.engine();
+    let id = ClientOrderId::new(id);
+    Ok(Json(dto::order_view(engine.order(id)?, engine.fee_of(id))))
 }
 
 pub async fn cancel_order(
@@ -175,7 +191,8 @@ pub async fn cancel_order(
     let id = ClientOrderId::new(id);
     let mut app = state.lock().await;
     app.execute(now(), Command::CancelOrder { id })?;
-    Ok(Json(app.engine().order(id)?.into()))
+    let engine = app.engine();
+    Ok(Json(dto::order_view(engine.order(id)?, engine.fee_of(id))))
 }
 
 /// Cancel-replace. Returns **both** sides, because a caller that saw only the
@@ -202,8 +219,9 @@ pub async fn replace_order(
         },
     )?;
 
-    let original: dto::OrderView = app.engine().order(id)?.into();
-    let replacement: dto::OrderView = app.engine().order(replacement_id)?.into();
+    let engine = app.engine();
+    let original = dto::order_view(engine.order(id)?, engine.fee_of(id));
+    let replacement = dto::order_view(engine.order(replacement_id)?, engine.fee_of(replacement_id));
     Ok(Json(
         json!({ "original": original, "replacement": replacement }),
     ))
@@ -235,7 +253,8 @@ pub async fn execute_order(
 
     let mut app = state.lock().await;
     app.execute(now(), command)?;
-    Ok(Json(app.engine().order(id)?.into()))
+    let engine = app.engine();
+    Ok(Json(dto::order_view(engine.order(id)?, engine.fee_of(id))))
 }
 
 // ---- market data ---------------------------------------------------------

@@ -1055,3 +1055,25 @@ practice — is declined as a build and documented as a derivation: every fill
 is already in the event log, so a lot ledger is a pure read-side fold. One log,
 many views; building the second view for a split nothing scores would be the
 gold-plating the brief warns against.
+
+## 2026-08-30 — per-order fees, and where orders actually live
+
+**Per-order fees are an engine projection, not a lifecycle field.** A1's
+decision stands — `OrderState` tracks what executed, gross — so the engine
+accrues `order_fees` in `apply(OrderFilled)`, exactly as it accrues
+`day_turnover`: same events, same single writer, one owner per fact. `fee_of`
+exposes it; every order surface (API, cockpit column, demo fill lines, the
+replay snapshot) now reports fees beside cost, never inside it.
+
+**The `From<&Order>` DTO impl was deleted, deliberately.** `order_view(order,
+fees)` takes the fee as an explicit argument so no call site can forget it and
+silently render zero — the compiler walked every route to the new signature.
+Replacements start at zero: fees stay with the order that incurred them.
+
+**Also recorded, because the question was asked: orders are not stored.** The
+database has one table — `events(seq, at, kind, payload)` — and orders are a
+fold over it, held in the engine's `BTreeMap` and rebuilt by replay. Which is
+why this feature, like `fees_paid` before it, materialised retroactively:
+restarting the new binary on the running cockpit's log back-filled per-order
+fees for fills booked before the projection existed. The fee was in every
+`order_filled` row all along; the projection just started reading it.

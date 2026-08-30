@@ -86,11 +86,12 @@ impl Demo {
             self.run(Command::AutoExecute { id })?;
             let o = self.app.engine().order(id)?;
             println!(
-                "    fill    #{id} -> {:<16} {:>4}/{:<4} cost {}",
+                "    fill    #{id} -> {:<16} {:>4}/{:<4} cost {} fees {}",
                 o.state.name(),
                 o.state.filled(),
                 o.qty,
-                o.state.cost()
+                o.state.cost(),
+                self.app.engine().fee_of(id)
             );
         }
         Ok(())
@@ -104,11 +105,12 @@ impl Demo {
         })?;
         let o = self.app.engine().order(id)?;
         println!(
-            "    fill    #{id} -> {:<16} {:>4}/{:<4} cost {}",
+            "    fill    #{id} -> {:<16} {:>4}/{:<4} cost {} fees {}",
             o.state.name(),
             o.state.filled(),
             o.qty,
-            o.state.cost()
+            o.state.cost(),
+            self.app.engine().fee_of(id)
         );
         Ok(())
     }

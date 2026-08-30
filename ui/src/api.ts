@@ -15,6 +15,7 @@ export interface OrderView {
   state: string
   filledQty: number
   filledCost: string
+  fees: string
   remainingQty: number
   brokerOrderId: number | null
   replaces: number | null

@@ -55,7 +55,7 @@ fn snapshot<B: broker::Broker>(e: &Engine<B>) -> Vec<String> {
     }
     for o in e.orders() {
         out.push(format!(
-            "order {} {} {:?} qty={} px={} state={} filled={} cost={} replaces={:?}",
+            "order {} {} {:?} qty={} px={} state={} filled={} cost={} fees={} replaces={:?}",
             o.id,
             o.symbol,
             o.side,
@@ -64,6 +64,7 @@ fn snapshot<B: broker::Broker>(e: &Engine<B>) -> Vec<String> {
             o.state.name(),
             o.state.filled(),
             o.state.cost(),
+            e.fee_of(o.id),
             o.replaces.map(|r| r.get())
         ));
     }
@@ -482,4 +483,5 @@ fn partial_fills_from_the_broker_reconcile_to_the_ordered_quantity() {
     );
     assert_eq!(alice.cash(), money("90020.03"));
     assert_eq!(alice.fees_paid(), money("9.97"));
+    assert_eq!(e.fee_of(oid(1)), money("9.97"));
 }

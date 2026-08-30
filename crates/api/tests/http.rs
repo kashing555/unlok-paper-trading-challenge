@@ -100,6 +100,7 @@ async fn a_competition_runs_end_to_end_over_http() {
     assert_eq!(order["state"], "FILLED");
     assert_eq!(order["filledQty"], 100);
     assert_eq!(order["filledCost"], "1000.0000");
+    assert_eq!(order["fees"], "0.0000");
     assert!(
         order["brokerOrderId"].is_null(),
         "terminal orders drop the broker id"

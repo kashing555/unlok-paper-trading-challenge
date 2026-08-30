@@ -73,8 +73,12 @@ pub struct OrderView {
     pub limit_px: String,
     pub state: &'static str,
     pub filled_qty: i64,
-    /// Gross notional executed, fees excluded — fees are the book's business.
+    /// Gross notional executed, fees excluded — the lifecycle tracks what
+    /// executed, not what it cost to execute.
     pub filled_cost: String,
+    /// Fees accrued on this order across its fills — the engine's projection
+    /// over the same events, reported beside the gross figure, never inside it.
+    pub fees: String,
     pub remaining_qty: i64,
     pub broker_order_id: Option<u64>,
     /// The order this one replaced. FIX `OrigClOrdID`.
@@ -82,26 +86,27 @@ pub struct OrderView {
     pub submitted_at: i64,
 }
 
-impl From<&Order> for OrderView {
-    fn from(o: &Order) -> Self {
-        Self {
-            id: o.id.get(),
-            participant: o.participant.to_string(),
-            symbol: o.symbol.to_string(),
-            side: match o.side {
-                domain::Side::Buy => "buy",
-                domain::Side::Sell => "sell",
-            },
-            qty: o.qty.get(),
-            limit_px: o.limit_px.to_string(),
-            state: o.state.name(),
-            filled_qty: o.state.filled().get(),
-            filled_cost: o.state.cost().to_string(),
-            remaining_qty: o.remaining().map_or(0, |q| q.get()),
-            broker_order_id: o.state.broker_id().map(domain::BrokerOrderId::get),
-            replaces: o.replaces.map(domain::ClientOrderId::get),
-            submitted_at: o.submitted_at.as_millis(),
-        }
+/// Built with the engine-held fee figure — an explicit argument rather than a
+/// `From` impl, so no call site can forget it and silently render zero.
+pub fn order_view(o: &Order, fees: domain::Money) -> OrderView {
+    OrderView {
+        id: o.id.get(),
+        participant: o.participant.to_string(),
+        symbol: o.symbol.to_string(),
+        side: match o.side {
+            domain::Side::Buy => "buy",
+            domain::Side::Sell => "sell",
+        },
+        qty: o.qty.get(),
+        limit_px: o.limit_px.to_string(),
+        state: o.state.name(),
+        filled_qty: o.state.filled().get(),
+        filled_cost: o.state.cost().to_string(),
+        fees: fees.to_string(),
+        remaining_qty: o.remaining().map_or(0, |q| q.get()),
+        broker_order_id: o.state.broker_id().map(domain::BrokerOrderId::get),
+        replaces: o.replaces.map(domain::ClientOrderId::get),
+        submitted_at: o.submitted_at.as_millis(),
     }
 }
 

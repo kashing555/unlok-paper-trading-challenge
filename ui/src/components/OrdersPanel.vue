@@ -49,6 +49,7 @@ function stateClass(state: string) {
           <th>State</th>
           <th class="num">Filled</th>
           <th class="num">Cost</th>
+          <th class="num">Fees</th>
           <th></th>
         </tr>
       </thead>
@@ -68,6 +69,7 @@ function stateClass(state: string) {
           </td>
           <td class="num">{{ o.filledQty }}/{{ o.qty }}</td>
           <td class="num">{{ o.filledCost }}</td>
+          <td class="num dim">{{ o.fees }}</td>
           <td style="white-space:nowrap">
             <template v-if="edit.id === o.id">
               <input v-model.number="edit.qty" type="number" min="1" class="num" style="width:70px" title="new quantity" />
@@ -83,7 +85,7 @@ function stateClass(state: string) {
           </td>
         </tr>
         <tr v-if="!s.orders.length">
-          <td colspan="10" class="dim">No orders yet.</td>
+          <td colspan="11" class="dim">No orders yet.</td>
         </tr>
       </tbody>
     </table>

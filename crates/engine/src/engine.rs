@@ -77,6 +77,11 @@ pub struct Engine<B: Broker> {
     orders: BTreeMap<ClientOrderId, Order>,
     marks: Marks,
     seq: u64,
+    /// Fees accrued per order — an engine projection over `OrderFilled`, like
+    /// `day_turnover`. Deliberately NOT in `OrderState`: the lifecycle stays
+    /// about what executed (gross), the accountant stays the engine (A1's
+    /// decision), and this fold gives the per-order view without reopening it.
+    order_fees: BTreeMap<ClientOrderId, Money>,
     /// Gross notional traded since the last close, per participant. A
     /// projection of the fills, reset by `DayClosed` — not a counter kept
     /// alongside them.
@@ -97,6 +102,7 @@ impl<B: Broker> Engine<B> {
             orders: BTreeMap::new(),
             marks: Marks::new(),
             seq: 0,
+            order_fees: BTreeMap::new(),
             day_turnover: BTreeMap::new(),
             day_fills: BTreeMap::new(),
             last_close: BTreeMap::new(),
@@ -140,6 +146,13 @@ impl<B: Broker> Engine<B> {
 
     pub const fn marks(&self) -> &Marks {
         &self.marks
+    }
+
+    /// Fees accrued on one order across all its fills. Zero for an order that
+    /// has none — including a replacement, which starts fresh; fees stay with
+    /// the order that incurred them.
+    pub fn fee_of(&self, id: ClientOrderId) -> Money {
+        self.order_fees.get(&id).copied().unwrap_or(Money::ZERO)
     }
 
     pub const fn seq(&self) -> u64 {
@@ -561,6 +574,9 @@ impl<B: Broker> Engine<B> {
                     .or_insert(Money::ZERO);
                 *running = running.checked_add(notional)?;
                 *self.day_fills.entry(participant).or_insert(0) += 1;
+
+                let accrued = self.order_fees.entry(*id).or_insert(Money::ZERO);
+                *accrued = accrued.checked_add(*fee)?;
             }
 
             Event::MarkUpdated { symbol, px } => {
