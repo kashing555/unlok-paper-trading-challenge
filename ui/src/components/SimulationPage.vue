@@ -2,6 +2,8 @@
 import { reactive } from 'vue'
 import { api, ApiError, type OrderView } from '../api'
 import { useCockpit } from '../store'
+import Portfolios from './Portfolios.vue'
+import Rankings from './Rankings.vue'
 
 const s = useCockpit()
 
@@ -13,6 +15,7 @@ const s = useCockpit()
 const run = reactive({ busy: false, log: [] as string[] })
 
 const say = (m: string) => run.log.push(m)
+const pause = (ms = 350) => new Promise((r) => setTimeout(r, ms))
 const TERMINAL = ['FILLED', 'CANCELLED', 'REJECTED']
 
 async function ensureParticipant(id: string) {
@@ -30,9 +33,16 @@ async function autoFill(id: number): Promise<OrderView> {
   for (let i = 0; i < 10; i++) {
     last = await api.execute(id)
     say(`fill    #${id} → ${last.state} ${last.filledQty}/${last.qty}`)
+    await pause()
     if (TERMINAL.includes(last.state)) return last
   }
   throw new Error(`order #${id} did not terminate`)
+}
+
+/** Narrate, then let the panels on the right catch up. */
+async function beat() {
+  await s.refresh()
+  await pause()
 }
 
 function nextDay(d: string): string {
@@ -59,6 +69,7 @@ async function runDemo() {
     say(`fill    #${a1.id} → PARTIALLY_FILLED 40/100 (explicit)`)
     await api.cancelOrder(a1.id)
     say(`cancel  #${a1.id} → keeps the 40 that executed`)
+    await beat()
 
     const a2 = await api.submitOrder({ participant: 'alice', symbol: 'MSFT', side: 'buy', qty: 50, limitPx: '20' })
     say(`submit  #${a2.id} alice buy 50 MSFT @ 20`)
@@ -72,8 +83,10 @@ async function runDemo() {
 
     await api.updateMarks([{ symbol: 'AAPL', px: '11' }, { symbol: 'MSFT', px: '21' }])
     say('marks   AAPL 11 · MSFT 21')
+    await beat()
     await api.closeDay(dayA)
     say(`close   ${dayA} → leaderboard published`)
+    await beat()
 
     say(`— day ${dayB} —`)
     const a3 = await api.submitOrder({ participant: 'alice', symbol: 'AAPL', side: 'sell', qty: 20, limitPx: '11' })
@@ -82,8 +95,10 @@ async function runDemo() {
 
     await api.updateMarks([{ symbol: 'AAPL', px: '10.5' }, { symbol: 'MSFT', px: '22.25' }])
     say('marks   AAPL 10.5 · MSFT 22.25')
+    await beat()
     await api.closeDay(dayB)
     say(`close   ${dayB} → ladder updated`)
+    await beat()
     say('done — carol is listed on the ladder but unranked: never traded.')
   } catch (e) {
     say(e instanceof ApiError ? `stopped: ${e.status} ${e.detail}` : `stopped: ${e}`)
@@ -95,25 +110,49 @@ async function runDemo() {
 </script>
 
 <template>
-  <section class="panel">
-    <header>
-      <h2>Scripted demo</h2>
-      <button class="primary" :disabled="run.busy" @click="runDemo">
-        {{ run.busy ? 'running…' : 'run two-day demo' }}
-      </button>
-    </header>
-    <div style="padding: 10px 12px">
-      <p class="dim" style="margin: 0 0 8px; font-size: 12px">
-        Drives the full scenario through the same endpoints as the buttons
-        above: partial fill, cancel keeping its fills, cancel-replace, marks,
-        two day closes, and a participant who never trades.
-      </p>
-      <pre v-if="run.log.length" class="demolog"><code>{{ run.log.join('\n') }}</code></pre>
+  <div class="sim">
+    <section class="panel">
+      <header>
+        <h2>Simulation</h2>
+        <button class="primary" :disabled="run.busy" @click="runDemo">
+          {{ run.busy ? 'running…' : 'run two-day simulation' }}
+        </button>
+      </header>
+      <div style="padding: 12px">
+        <p class="dim" style="margin: 0 0 10px; font-size: 12.5px">
+          The full two-day scenario, driven through the same public endpoints as
+          the console — partial fill, a cancel that keeps its fills, a
+          cancel-replace, marks moving, two day closes, and carol, who never
+          trades. It adapts to live state: existing participants are reused and
+          the next two unclosed days are used, so it can run again on top of
+          itself. Watch the results fill in on the right as it goes.
+        </p>
+        <pre v-if="run.log.length" class="demolog"><code>{{ run.log.join('\n') }}</code></pre>
+        <p v-else class="dim" style="font-size: 12.5px; margin: 0">
+          Nothing has run yet — press the button.
+        </p>
+      </div>
+    </section>
+    <div class="results">
+      <Portfolios />
+      <Rankings />
     </div>
-  </section>
+  </div>
 </template>
 
 <style scoped>
+.sim {
+  display: grid;
+  grid-template-columns: minmax(320px, 5fr) 7fr;
+  gap: 16px;
+  align-items: start;
+}
+.sim > .panel { position: sticky; top: 16px; }
+.results { display: grid; gap: 16px; min-width: 0; }
+@media (max-width: 1000px) {
+  .sim { grid-template-columns: 1fr; }
+  .sim > .panel { position: static; }
+}
 .demolog {
   margin: 0;
   padding: 10px 12px;
@@ -122,7 +161,7 @@ async function runDemo() {
   border-radius: 6px;
   font-size: 12px;
   line-height: 1.6;
-  max-height: 260px;
+  max-height: 60vh;
   overflow-y: auto;
   white-space: pre-wrap;
 }

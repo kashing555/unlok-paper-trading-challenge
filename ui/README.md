@@ -20,15 +20,21 @@ npm run build       # vue-tsc --noEmit && vite build
 npm run typecheck
 ```
 
-## The demo button
+## Two pages
 
-**Scripted demo** (left column) runs the full two-day `ptc-demo` scenario
-through the same REST endpoints as every other button — partial fill, a cancel
-that keeps its fills, a cancel-replace, marks, two day closes, and carol who
-never trades. It adapts to live state: participants are created only if
-missing, and it closes the next two days after whatever is already closed, so
-it works on a fresh server or on top of manual play. No private endpoint backs
-it; what you watch is exactly what the public API can do.
+**Console** is the operator's desk: all seven of the brief's interface
+operations — create participants, submit/cancel/replace, drive executions,
+update marks, view orders and positions, close a day, view both rankings.
+
+**Simulation** runs the full two-day `ptc-demo` scenario through the same
+public REST endpoints the console uses — partial fill, a cancel that keeps its
+fills, a cancel-replace, marks, two day closes, and carol who never trades —
+with the narrated log on the left and portfolios/rankings filling in live on
+the right. It adapts to live state: existing participants are reused and it
+closes the next two unclosed days, so it composes with manual play and with
+itself. No private endpoint backs it; what you watch is exactly what the
+public API can do. (Navigation is a reactive switch, not vue-router — a
+dependency for a boolean is the same declined forwarding-layer as elsewhere.)
 
 ## Notes
 

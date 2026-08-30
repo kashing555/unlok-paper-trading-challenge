@@ -1,13 +1,16 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted } from 'vue'
+import { onMounted, onUnmounted, ref } from 'vue'
 import Controls from './components/Controls.vue'
-import DemoRunner from './components/DemoRunner.vue'
 import OrdersPanel from './components/OrdersPanel.vue'
 import Portfolios from './components/Portfolios.vue'
 import Rankings from './components/Rankings.vue'
+import SimulationPage from './components/SimulationPage.vue'
 import { useCockpit } from './store'
 
 const s = useCockpit()
+// Two pages, one reactive switch. vue-router would be a dependency for a
+// boolean — the same declined-forwarding-layer argument as everywhere else.
+const page = ref<'console' | 'simulation'>('console')
 let timer: number | undefined
 
 // Polling, not a websocket. The backend has no push channel and adding one
@@ -23,9 +26,12 @@ onUnmounted(() => window.clearInterval(timer))
 <template>
   <div class="shell">
     <header class="top">
-      <div>
+      <div style="display: flex; align-items: baseline; gap: 18px">
         <strong>Paper Trading Cockpit</strong>
-        <span class="dim" style="margin-left: 10px">unlok-paper-trading-challenge</span>
+        <nav class="pages">
+          <button :class="{ on: page === 'console' }" @click="page = 'console'">Console</button>
+          <button :class="{ on: page === 'simulation' }" @click="page = 'simulation'">Simulation</button>
+        </nav>
       </div>
       <div style="display: flex; gap: 8px; align-items: center">
         <span class="tag">{{ s.events }} events</span>
@@ -41,14 +47,15 @@ onUnmounted(() => window.clearInterval(timer))
     </p>
     <p v-else-if="s.lastError" class="banner">{{ s.lastError }}</p>
 
-    <main>
-      <aside class="stack"><Controls /><DemoRunner /></aside>
+    <main v-if="page === 'console'">
+      <aside><Controls /></aside>
       <div class="stack">
         <Portfolios />
         <OrdersPanel />
         <Rankings />
       </div>
     </main>
+    <SimulationPage v-else />
 
     <footer class="dim">
       Beyond the brief — “no user interface is required”. Built after the scored
@@ -77,6 +84,13 @@ onUnmounted(() => window.clearInterval(timer))
   font-size: 13px;
 }
 main { display: grid; grid-template-columns: 340px 1fr; gap: 16px; align-items: start; }
+.pages { display: flex; gap: 4px; }
+.pages button {
+  border: none; background: none; padding: 4px 10px; border-radius: 6px;
+  color: var(--dim); font-size: 13px; cursor: pointer;
+}
+.pages button:hover { color: var(--text); }
+.pages button.on { color: var(--accent); background: #16324f33; }
 .stack { display: grid; gap: 16px; min-width: 0; }
 footer { margin-top: 24px; font-size: 12px; }
 code { background: #0b1017; padding: 1px 5px; border-radius: 4px; }
