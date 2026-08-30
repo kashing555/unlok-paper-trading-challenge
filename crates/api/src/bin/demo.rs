@@ -154,17 +154,18 @@ impl Demo {
 
     fn portfolios(&self) -> Result<(), Box<dyn Error>> {
         println!(
-            "    {:<8} {:>12} {:>12} {:>12} {:>14}",
-            "who", "cash", "realized", "unrealized", "total value"
+            "    {:<8} {:>12} {:>12} {:>12} {:>10} {:>14}",
+            "who", "cash", "realized", "unrealized", "fees", "total value"
         );
         for p in self.app.engine().participants() {
             let marks = self.app.engine().marks();
             println!(
-                "    {:<8} {:>12} {:>12} {:>12} {:>14}",
+                "    {:<8} {:>12} {:>12} {:>12} {:>10} {:>14}",
                 p.participant().to_string(),
                 p.cash().to_string(),
                 p.realized_pnl().to_string(),
                 p.unrealized_pnl(marks)?.to_string(),
+                p.fees_paid().to_string(),
                 p.total_value(marks)?.to_string(),
             );
             for pos in p.positions() {

@@ -126,6 +126,9 @@ pub struct PortfolioView {
     pub starting_cash: String,
     pub cash: String,
     pub realized_pnl: String,
+    /// Separate from the basis it was capitalised into — the record keeps
+    /// price and fee apart, so the report does too.
+    pub fees_paid: String,
     /// `null` when a held symbol has no mark. **Fail closed means never a wrong
     /// number, not never a response** — the read succeeds, the valuation does
     /// not, and `valuationError` says which symbol is missing.
@@ -159,6 +162,7 @@ pub fn portfolio_view(
         starting_cash: portfolio.starting_cash().to_string(),
         cash: portfolio.cash().to_string(),
         realized_pnl: portfolio.realized_pnl().to_string(),
+        fees_paid: portfolio.fees_paid().to_string(),
         unrealized_pnl,
         total_value,
         valuation_error,

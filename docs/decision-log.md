@@ -1034,3 +1034,24 @@ invariant (the ranked output, not row order).
 may change algorithm between `rand` releases, which would silently break
 same-seed replay on an upgrade; ChaCha8's stream is pinned. The argument
 existed only in a head; now it is in the broker's crate docs.
+
+
+## 2026-08-30 — fees surfaced; lot methodology decided
+
+**Fees are now reported, not only booked.** The record always kept price and
+fee separate (as FIX does — Commission tag 12, MiscFees 136–139); what was
+missing was visibility: the portfolio now folds `fees_paid` from the same
+`OrderFilled` events and reports it through the API, the cockpit and the demo.
+The demo's bob makes the case by himself: unrealized −0.5500, fees 0.5500 — a
+flat stock, and the whole loss is the commission, now legible.
+
+**One lot view, on purpose.** Average cost stays the only view in the engine:
+it is the brief's own term, it is what every blotter shows, and the competition
+scores closing value — which is invariant to lot methodology, since any method
+moves basis between realized and unrealized without changing their sum
+(worked in design.md §7: +150/avg vs +200/FIFO, offset exactly by the basis
+left behind). The books/tax view — FIFO default, specific-identification in
+practice — is declined as a build and documented as a derivation: every fill
+is already in the event log, so a lot ledger is a pure read-side fold. One log,
+many views; building the second view for a split nothing scores would be the
+gold-plating the brief warns against.

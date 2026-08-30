@@ -206,6 +206,41 @@ derived `avg` — the average appears only at display time.
 Short positions are out of scope (the brief permits this). `total_qty` may not
 go negative; a sell exceeding the position is `REJECTED` at submit.
 
+### Fees: separate on the record, capitalised in the basis
+
+Institutionally the fill price and the costs are **always separate fields** — a
+FIX execution report carries `Commission` (12) and an itemised `MiscFees` group
+(136–139) beside the price, and US confirms must disclose commission apart
+(Rule 10b-10) — because transaction-cost analysis is impossible against blended
+prices. Retail all-in pricing is the anomaly, not the norm.
+
+This system keeps that shape: `Fill` carries `px` and `fee` separately, every
+`OrderFilled` event stores both, and the portfolio reports `fees_paid` as its
+own figure. What the *accounting* then does with the fee is a policy choice —
+funds capitalise into basis (our convention); bank mark-to-market desks expense
+it as a line item. Same record, two treatments; ours is the fund one, stated.
+
+### Lot accounting: the risk view, and the books view we decline
+
+Selling 50 after buying 100 @ 10 and 100 @ 12 realizes **+150** against the
+average (11) or **+200** under FIFO (oldest lot first) — and leaves behind
+exactly offsetting basis (1,650 vs 1,700), so **realized + unrealized is
+identical under every lot method**. The method moves the boundary between the
+two buckets; it never moves their sum.
+
+That decides the design. This competition scores closing value and its daily
+difference — both invariant to lot methodology — so the engine keeps **one**
+view: the trading/risk view, average cost, which is also the brief's own word
+("average position price") and what every OMS blotter shows. The books/tax
+view — FIFO by US default, specific-identification in institutional practice —
+is a **documented non-goal**: it would add a lot ledger and a relief policy to
+change a decomposition no ranked number depends on.
+
+If it were ever wanted, no engine change is needed: every fill is in the event
+log with its price, quantity and fee, so a FIFO lot ledger is a pure read-side
+fold over `OrderFilled` events — one log, many views. That is the event-sourcing
+argument in one sentence.
+
 ## 8. Closing a day
 
 A day close is a **snapshot, and it is immutable once written**.

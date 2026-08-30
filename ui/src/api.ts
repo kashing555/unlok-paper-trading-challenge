@@ -36,6 +36,7 @@ export interface PortfolioView {
   startingCash: string
   cash: string
   realizedPnl: string
+  feesPaid: string
   unrealizedPnl: string | null
   totalValue: string | null
   valuationError: string | null

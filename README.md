@@ -143,7 +143,9 @@ sell q @ p, fee f:   removed   = cost · q / qty
 - **Average cost is never stored**, only `qty` and `cost`; the average is derived
   for display. A stored rounded average drifts. Tests pin it: buy 100 @ 10 then
   100 @ 12 gives 11.05, and **selling 50 leaves it at 11.05**.
-- **Fees capitalised on buy, expensed on sell** — one convention, both sides.
+- **Fees capitalised on buy, expensed on sell** — one convention, both sides —
+  and **also reported separately** (`feesPaid`): the record keeps price and fee
+  apart, as FIX does, even though the basis convention folds them in.
 - **Partial sales cannot accumulate residue**: a final sale has `sold == held`,
   so that division is exact. Tested on a basis that divides badly, closing to
   exactly zero.
@@ -218,7 +220,11 @@ shares · marketable-limit fills only, so no book, queue position or price
 improvement · money exact at 4 dp with no settlement rounding · a trading day is
 whatever the operator closes, with no exchange calendar, and resting orders
 carry over · participants assumed to start together with equal capital · no
-deposits or withdrawals after creation · no auth or rate limiting · **ranking
+deposits or withdrawals after creation · **lot accounting is the risk view** —
+average cost, the brief's own term; a tax-lot books view (FIFO / specific-ID)
+is a documented non-goal since realized + unrealized is invariant to lot method
+and so no ranked number depends on it (design.md §7) · no auth or rate
+limiting · **ranking
 rules are code**, so a `DayClosed` event stores the day's *facts* and the board
 is recomputed from them — but changing the rules would change historical boards ·
 one process, state rebuilt by replaying the log at startup.

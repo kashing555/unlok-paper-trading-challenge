@@ -17,6 +17,7 @@ const s = useCockpit()
           <th class="num">Cash</th>
           <th class="num">Realized</th>
           <th class="num">Unrealized</th>
+          <th class="num">Fees</th>
           <th class="num">Total value</th>
           <th>Positions</th>
         </tr>
@@ -31,6 +32,7 @@ const s = useCockpit()
           <td class="num" :class="signOf(s.portfolios[p]?.unrealizedPnl ?? null)">
             {{ s.portfolios[p]?.unrealizedPnl ?? '—' }}
           </td>
+          <td class="num dim">{{ s.portfolios[p]?.feesPaid ?? '—' }}</td>
           <td class="num">
             <template v-if="s.portfolios[p]?.totalValue">{{ s.portfolios[p]!.totalValue }}</template>
             <!-- Fail closed: a held symbol with no mark gets no number, and
@@ -45,7 +47,7 @@ const s = useCockpit()
           </td>
         </tr>
         <tr v-if="!s.participants.length">
-          <td colspan="6" class="dim">No participants yet — create one on the left.</td>
+          <td colspan="7" class="dim">No participants yet — create one on the left.</td>
         </tr>
       </tbody>
     </table>

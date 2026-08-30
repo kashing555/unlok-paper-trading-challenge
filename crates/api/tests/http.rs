@@ -110,6 +110,7 @@ async fn a_competition_runs_end_to_end_over_http() {
     let (s, p) = get(&state, "/participants/alice/portfolio").await;
     assert_eq!(s, StatusCode::OK);
     assert_eq!(p["cash"], "99000.0000");
+    assert_eq!(p["feesPaid"], "0.0000");
     assert_eq!(p["positions"][0]["qty"], 100);
     assert_eq!(p["positions"][0]["avgPrice"], "10.0000");
     assert_eq!(p["unrealizedPnl"], "200.0000");

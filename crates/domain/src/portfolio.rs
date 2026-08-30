@@ -68,6 +68,11 @@ pub struct Portfolio {
     starting_cash: Money,
     cash: Money,
     realized_pnl: Money,
+    /// Every fee ever charged, both sides. Reported separately because the
+    /// record keeps price and fee apart (as FIX does) even though the basis
+    /// convention capitalises buys — fees also being *in* the basis does not
+    /// excuse them from being *visible*.
+    fees_paid: Money,
     positions: BTreeMap<Symbol, Position>,
 }
 
@@ -78,6 +83,7 @@ impl Portfolio {
             starting_cash,
             cash: starting_cash,
             realized_pnl: Money::ZERO,
+            fees_paid: Money::ZERO,
             positions: BTreeMap::new(),
         }
     }
@@ -98,6 +104,11 @@ impl Portfolio {
     /// The brief's "realized P&L" — booked at each sell, never re-derived.
     pub const fn realized_pnl(&self) -> Money {
         self.realized_pnl
+    }
+
+    /// Total fees charged across every fill, both sides.
+    pub const fn fees_paid(&self) -> Money {
+        self.fees_paid
     }
 
     /// The brief's "current positions": held ones only. A symbol traded and
@@ -136,6 +147,7 @@ impl Portfolio {
                     .or_insert_with(|| Position::flat(fill.symbol.clone()));
                 position.buy(fill.qty, fill.px, fill.fee)?;
                 self.cash = self.cash.checked_sub(outlay)?;
+                self.fees_paid = self.fees_paid.checked_add(fill.fee)?;
             }
 
             Side::Sell => {
@@ -150,6 +162,7 @@ impl Portfolio {
                 let realized = position.sell(fill.qty, fill.px, fill.fee)?;
                 self.cash = self.cash.checked_add(realized.proceeds_net)?;
                 self.realized_pnl = self.realized_pnl.checked_add(realized.pnl)?;
+                self.fees_paid = self.fees_paid.checked_add(fill.fee)?;
             }
         }
         Ok(())
@@ -266,6 +279,7 @@ mod tests {
         // Mark at 10.00: value 2500, basis 2462.50
         let marks = marks_at("10");
         assert_eq!(p.market_value(&marks).unwrap(), money("2500"));
+        assert_eq!(p.fees_paid(), money("20"));
         assert_eq!(p.unrealized_pnl(&marks).unwrap(), money("37.50"));
         assert_eq!(p.total_value(&marks).unwrap(), money("100230"));
     }

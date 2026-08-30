@@ -481,4 +481,5 @@ fn partial_fills_from_the_broker_reconcile_to_the_ordered_quantity() {
         money("9979.97")
     );
     assert_eq!(alice.cash(), money("90020.03"));
+    assert_eq!(alice.fees_paid(), money("9.97"));
 }
