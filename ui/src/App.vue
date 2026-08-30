@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted } from 'vue'
 import Controls from './components/Controls.vue'
+import DemoRunner from './components/DemoRunner.vue'
 import OrdersPanel from './components/OrdersPanel.vue'
 import Portfolios from './components/Portfolios.vue'
 import Rankings from './components/Rankings.vue'
@@ -41,7 +42,7 @@ onUnmounted(() => window.clearInterval(timer))
     <p v-else-if="s.lastError" class="banner">{{ s.lastError }}</p>
 
     <main>
-      <aside><Controls /></aside>
+      <aside class="stack"><Controls /><DemoRunner /></aside>
       <div class="stack">
         <Portfolios />
         <OrdersPanel />

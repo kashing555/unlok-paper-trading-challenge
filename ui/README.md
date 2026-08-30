@@ -20,6 +20,16 @@ npm run build       # vue-tsc --noEmit && vite build
 npm run typecheck
 ```
 
+## The demo button
+
+**Scripted demo** (left column) runs the full two-day `ptc-demo` scenario
+through the same REST endpoints as every other button — partial fill, a cancel
+that keeps its fills, a cancel-replace, marks, two day closes, and carol who
+never trades. It adapts to live state: participants are created only if
+missing, and it closes the next two days after whatever is already closed, so
+it works on a fresh server or on top of manual play. No private endpoint backs
+it; what you watch is exactly what the public API can do.
+
 ## Notes
 
 **Money and returns are kept as decimal strings and never parsed into a
