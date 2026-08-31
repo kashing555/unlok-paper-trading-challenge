@@ -5,7 +5,7 @@ broker, per-participant portfolio and P&L tracking, and deterministic daily and
 overall rankings.
 
 **Rust workspace · Axum HTTP · SQLite event log · long-only equities.**
-102 tests; `./scripts/check.sh` runs fmt, `clippy -D warnings` and the suite.
+103 tests; `./scripts/check.sh` runs fmt, `clippy -D warnings` and the suite.
 
 ```bash
 cargo run --bin ptc-demo     # a full two-day competition, start to finish
@@ -22,10 +22,17 @@ cargo run --bin ptc-demo     # a full two-day competition, start to finish
 A stable Rust toolchain (tested on 1.97). SQLite is bundled — nothing to install.
 
 ```bash
-cargo test --workspace       # 102 tests
+cargo test --workspace       # 103 tests
 cargo run --bin ptc-demo     # scripted demo: seeded broker, fixed clock, reproducible
 cargo run --bin ptc          # server on http://127.0.0.1:8080
 ```
+
+**Interactive API docs** at [`/docs`](http://127.0.0.1:8080/docs) — Swagger UI
+over the contract served at `/openapi.json`, with the operations **grouped by
+the brief's own seven interface bullets**, so the spec reads as the requirement
+list. Try-it-out works against the live server. (The docs *page* pulls Swagger's
+assets from a CDN; the API itself has no external dependency, and the raw
+contract stays readable offline.)
 
 | Env | Default | |
 |---|---|---|
@@ -200,7 +207,7 @@ payloads state their own ranking rules, so a consumer never infers them.
 
 ## Testing
 
-102 tests. `domain` and `scoring` hold no I/O, so the scored logic is tested
+103 tests. `domain` and `scoring` hold no I/O, so the scored logic is tested
 without a server; integration tests then prove it composes.
 
 The **full 6 × 4 state/event matrix** with a length assertion so a new pair

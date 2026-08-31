@@ -1,0 +1,278 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Paper Trading Challenge API",
+    "version": "0.1.0",
+    "description": "Backend for a paper trading competition. Tags mirror the brief's seven required operations. Money and prices are decimal **strings** at four decimal places — never JSON numbers — and errors are RFC 7807 `application/problem+json` carrying the numbers that explain them."
+  },
+  "tags": [
+    { "name": "Create participants" },
+    { "name": "Submit, cancel, and replace orders" },
+    { "name": "Generate mock executions" },
+    { "name": "Update market prices" },
+    { "name": "View orders and positions" },
+    { "name": "Close a trading day" },
+    { "name": "View daily and overall rankings" },
+    { "name": "Health" }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": ["Health"],
+        "summary": "Liveness plus entity counts",
+        "responses": { "200": { "description": "Counts of participants, orders, events and closed days" } }
+      }
+    },
+    "/participants": {
+      "post": {
+        "tags": ["Create participants"],
+        "summary": "Create a participant with starting cash",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreateParticipant" } } }
+        },
+        "responses": {
+          "201": { "description": "Created" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "409": { "description": "Duplicate participant id", "content": { "application/problem+json": { "schema": { "$ref": "#/components/schemas/Problem" } } } }
+        }
+      },
+      "get": {
+        "tags": ["Create participants"],
+        "summary": "List participant ids",
+        "responses": { "200": { "description": "All participant ids" } }
+      }
+    },
+    "/participants/{id}/portfolio": {
+      "get": {
+        "tags": ["View orders and positions"],
+        "summary": "Cash, positions, average price, realized/unrealized P&L, fees, total value, active orders",
+        "description": "If a held symbol has no mark, the read still succeeds with `totalValue: null` and a `valuationError` naming the symbol — fail closed means never a wrong number, not never a response.",
+        "parameters": [{ "$ref": "#/components/parameters/ParticipantId" }],
+        "responses": {
+          "200": { "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortfolioView" } } }, "description": "The portfolio" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/participants/{id}/orders": {
+      "get": {
+        "tags": ["View orders and positions"],
+        "summary": "Full order history for one participant",
+        "parameters": [{ "$ref": "#/components/parameters/ParticipantId" }],
+        "responses": {
+          "200": { "description": "All orders, newest state included" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/orders": {
+      "post": {
+        "tags": ["Submit, cancel, and replace orders"],
+        "summary": "Submit an order (the server mints the order id)",
+        "description": "Pre-trade checks reserve against **working** orders: available cash = balance − Σ(remaining notional + fee) of open buys, so two orders cannot spend the same cash. Rejected inputs are never repaired: `10.123456`, `aapl`, side `BUY` are all 400s.",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SubmitOrder" } } }
+        },
+        "responses": {
+          "201": { "content": { "application/json": { "schema": { "$ref": "#/components/schemas/OrderView" } } }, "description": "ACKNOWLEDGED (or REJECTED by broker limits)" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "422": {
+            "description": "Insufficient available cash or position — the body carries the numbers",
+            "content": { "application/problem+json": { "schema": { "$ref": "#/components/schemas/Problem" }, "example": { "type": "https://unlok-ptc.invalid/errors/insufficient-cash", "title": "insufficient cash", "status": 422, "detail": "insufficient available cash: need 300.1500, 99.5500 free after working orders", "need": "300.1500", "available": "99.5500" } } }
+          }
+        }
+      },
+      "get": {
+        "tags": ["View orders and positions"],
+        "summary": "Every order in the system",
+        "responses": { "200": { "description": "All orders" } }
+      }
+    },
+    "/orders/{id}": {
+      "get": {
+        "tags": ["View orders and positions"],
+        "summary": "One order",
+        "parameters": [{ "$ref": "#/components/parameters/OrderId" }],
+        "responses": { "200": { "description": "The order" }, "404": { "$ref": "#/components/responses/NotFound" } }
+      },
+      "delete": {
+        "tags": ["Submit, cancel, and replace orders"],
+        "summary": "Cancel a working order — filled quantity survives",
+        "parameters": [{ "$ref": "#/components/parameters/OrderId" }],
+        "responses": {
+          "200": { "description": "CANCELLED, keeping whatever already executed" },
+          "409": {
+            "description": "Illegal transition — the body names the current state",
+            "content": { "application/problem+json": { "schema": { "$ref": "#/components/schemas/Problem" }, "example": { "type": "https://unlok-ptc.invalid/errors/illegal-transition", "title": "illegal transition", "status": 409, "detail": "cannot apply a cancellation to an order in state FILLED", "currentState": "FILLED", "attempted": "a cancellation" } } }
+          },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      },
+      "put": {
+        "tags": ["Submit, cancel, and replace orders"],
+        "summary": "Cancel-replace: new terms, new order, chained via `replaces`",
+        "description": "Returns **both** sides — the original CANCELLED with its fills intact, and the replacement working at the new terms (FIX OrigClOrdID semantics).",
+        "parameters": [{ "$ref": "#/components/parameters/OrderId" }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ReplaceOrder" } } }
+        },
+        "responses": {
+          "200": { "description": "{ original, replacement }" },
+          "409": { "description": "Terminal order, or replacement id already used" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/broker/executions": {
+      "post": {
+        "tags": ["Generate mock executions"],
+        "summary": "Generate an execution report for a working order",
+        "description": "Send `qty` **and** `px` to dictate the terms (the deterministic-test path), or **neither** to let the seeded broker slice — each auto execution takes at least 1/max_slices of the order. Exactly one of the pair is a 400: refused, not half-guessed.",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Execute" } } }
+        },
+        "responses": {
+          "200": { "content": { "application/json": { "schema": { "$ref": "#/components/schemas/OrderView" } } }, "description": "The order after the fill" },
+          "409": { "description": "Order is terminal, or nothing remains to execute" },
+          "422": { "description": "Overfill, empty fill, or the book refuses the fill" }
+        }
+      }
+    },
+    "/market/prices": {
+      "post": {
+        "tags": ["Update market prices"],
+        "summary": "Update marks (batch) — this is the market moving",
+        "description": "Every entry is parsed before any is applied: a batch with one malformed price updates nothing.",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/MarkUpdate" } } } }
+        },
+        "responses": { "200": { "description": "{ updated: n }" }, "400": { "$ref": "#/components/responses/BadRequest" } }
+      }
+    },
+    "/days": {
+      "get": {
+        "tags": ["Close a trading day"],
+        "summary": "Which days are closed",
+        "responses": { "200": { "description": "Closed days, ascending" } }
+      }
+    },
+    "/days/{day}/close": {
+      "post": {
+        "tags": ["Close a trading day"],
+        "summary": "Close a trading day and publish its leaderboard",
+        "description": "Idempotent — re-closing returns the published board even if marks moved since. Days close in order. Fails closed (409) if any held symbol lacks a mark: a wrong closing value would corrupt an immutable board.",
+        "parameters": [{ "$ref": "#/components/parameters/Day" }],
+        "responses": {
+          "200": { "description": "The day's leaderboard" },
+          "409": { "description": "Missing mark, or day out of order — body names which" }
+        }
+      }
+    },
+    "/days/{day}/leaderboard": {
+      "get": {
+        "tags": ["View daily and overall rankings"],
+        "summary": "A closed day's leaderboard",
+        "description": "The payload states its own rules: rankedBy `dailyReturn descending`, tiebreaks `turnover ascending` then `participantId ascending`.",
+        "parameters": [{ "$ref": "#/components/parameters/Day" }],
+        "responses": { "200": { "description": "The board" }, "404": { "description": "Day not closed" } }
+      }
+    },
+    "/ladder": {
+      "get": {
+        "tags": ["View daily and overall rankings"],
+        "summary": "The overall competition ladder",
+        "description": "Geometric compound of daily returns. Participants with no active day are listed with `rank: null, eligible: false` — never traded, never placed.",
+        "responses": { "200": { "description": "The ladder" } }
+      }
+    }
+  },
+  "components": {
+    "parameters": {
+      "ParticipantId": { "name": "id", "in": "path", "required": true, "schema": { "type": "string" }, "example": "alice" },
+      "OrderId": { "name": "id", "in": "path", "required": true, "schema": { "type": "integer", "format": "int64" }, "example": 1 },
+      "Day": { "name": "day", "in": "path", "required": true, "schema": { "type": "string", "format": "date" }, "example": "2026-08-30" }
+    },
+    "responses": {
+      "BadRequest": { "description": "Rejected input — strict parsing, nothing repaired", "content": { "application/problem+json": { "schema": { "$ref": "#/components/schemas/Problem" } } } },
+      "NotFound": { "description": "Unknown participant, order or day", "content": { "application/problem+json": { "schema": { "$ref": "#/components/schemas/Problem" } } } }
+    },
+    "schemas": {
+      "Money": { "type": "string", "description": "Decimal string, four places, exact — never a JSON number", "example": "100000.0000" },
+      "CreateParticipant": {
+        "type": "object", "required": ["id", "startingCash"],
+        "properties": { "id": { "type": "string", "example": "alice" }, "startingCash": { "$ref": "#/components/schemas/Money" } }
+      },
+      "SubmitOrder": {
+        "type": "object", "required": ["participant", "symbol", "side", "qty", "limitPx"],
+        "properties": {
+          "participant": { "type": "string", "example": "alice" },
+          "symbol": { "type": "string", "description": "Upper-case only — `aapl` is rejected, not normalised", "example": "AAPL" },
+          "side": { "type": "string", "enum": ["buy", "sell"] },
+          "qty": { "type": "integer", "minimum": 1, "example": 100 },
+          "limitPx": { "$ref": "#/components/schemas/Money" }
+        }
+      },
+      "ReplaceOrder": {
+        "type": "object", "required": ["qty", "limitPx"],
+        "properties": { "qty": { "type": "integer", "example": 50 }, "limitPx": { "$ref": "#/components/schemas/Money" } }
+      },
+      "Execute": {
+        "type": "object", "required": ["orderId"],
+        "properties": {
+          "orderId": { "type": "integer", "example": 1 },
+          "qty": { "type": "integer", "description": "With px: dictate the terms. Omit both for the seeded broker." },
+          "px": { "$ref": "#/components/schemas/Money" }
+        }
+      },
+      "MarkUpdate": {
+        "type": "object", "required": ["symbol", "px"],
+        "properties": { "symbol": { "type": "string", "example": "AAPL" }, "px": { "$ref": "#/components/schemas/Money" } }
+      },
+      "OrderView": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" }, "participant": { "type": "string" }, "symbol": { "type": "string" },
+          "side": { "type": "string", "enum": ["buy", "sell"] }, "qty": { "type": "integer" },
+          "limitPx": { "$ref": "#/components/schemas/Money" },
+          "state": { "type": "string", "enum": ["NEW", "ACKNOWLEDGED", "PARTIALLY_FILLED", "FILLED", "CANCELLED", "REJECTED"] },
+          "filledQty": { "type": "integer" },
+          "filledCost": { "$ref": "#/components/schemas/Money" },
+          "fees": { "$ref": "#/components/schemas/Money" },
+          "remainingQty": { "type": "integer" },
+          "brokerOrderId": { "type": "integer", "nullable": true },
+          "replaces": { "type": "integer", "nullable": true, "description": "FIX OrigClOrdID — the order this one replaced" },
+          "submittedAt": { "type": "integer", "format": "int64" }
+        }
+      },
+      "PortfolioView": {
+        "type": "object",
+        "properties": {
+          "participant": { "type": "string" },
+          "startingCash": { "$ref": "#/components/schemas/Money" },
+          "cash": { "$ref": "#/components/schemas/Money" },
+          "realizedPnl": { "$ref": "#/components/schemas/Money" },
+          "feesPaid": { "$ref": "#/components/schemas/Money" },
+          "unrealizedPnl": { "$ref": "#/components/schemas/Money", "nullable": true },
+          "totalValue": { "$ref": "#/components/schemas/Money", "nullable": true },
+          "valuationError": { "type": "string", "nullable": true },
+          "positions": { "type": "array", "items": { "type": "object" } },
+          "activeOrders": { "type": "array", "items": { "$ref": "#/components/schemas/OrderView" } }
+        }
+      },
+      "Problem": {
+        "type": "object",
+        "description": "RFC 7807, plus domain members carrying the numbers that explain the refusal",
+        "properties": {
+          "type": { "type": "string" }, "title": { "type": "string" },
+          "status": { "type": "integer" }, "detail": { "type": "string" }
+        },
+        "additionalProperties": true
+      }
+    }
+  }
+}

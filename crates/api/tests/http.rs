@@ -358,3 +358,55 @@ async fn state_survives_a_restart_because_the_log_does() {
 
     std::fs::remove_file(&path).unwrap();
 }
+
+#[tokio::test]
+async fn the_openapi_contract_matches_the_router() {
+    let state = app();
+
+    let (status, spec) = get(&state, "/openapi.json").await;
+    assert_eq!(status, StatusCode::OK);
+
+    // Every path+method the spec claims must exist, and every route the
+    // router serves must be documented — hand-written specs drift, so the
+    // drift is a test failure instead of a discovery.
+    let mut documented: Vec<String> = spec["paths"]
+        .as_object()
+        .unwrap()
+        .iter()
+        .flat_map(|(path, ops)| {
+            ops.as_object()
+                .unwrap()
+                .keys()
+                .map(move |m| format!("{} {path}", m.to_uppercase()))
+        })
+        .collect();
+    documented.sort();
+
+    let mut served = vec![
+        "GET /health",
+        "POST /participants",
+        "GET /participants",
+        "GET /participants/{id}/portfolio",
+        "GET /participants/{id}/orders",
+        "POST /orders",
+        "GET /orders",
+        "GET /orders/{id}",
+        "DELETE /orders/{id}",
+        "PUT /orders/{id}",
+        "POST /broker/executions",
+        "POST /market/prices",
+        "GET /days",
+        "POST /days/{day}/close",
+        "GET /days/{day}/leaderboard",
+        "GET /ladder",
+    ]
+    .into_iter()
+    .map(String::from)
+    .collect::<Vec<_>>();
+    served.sort();
+
+    assert_eq!(documented, served, "openapi.json and the router disagree");
+
+    let (status, _) = get(&state, "/docs").await;
+    assert_eq!(status, StatusCode::OK);
+}

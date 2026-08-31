@@ -24,6 +24,7 @@ use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use axum::{
+    response::Html,
     routing::{delete, get, post, put},
     Router,
 };
@@ -92,9 +93,38 @@ pub fn now() -> Timestamp {
     Timestamp::from_millis(millis)
 }
 
+/// The contract, hand-written and served by the API itself. Hand-written
+/// rather than derived (utoipa et al.) because the spec is a *decision
+/// document* — descriptions carry the semantics (idempotent close, fail-closed
+/// valuation, strict parsing) that no derive macro knows — and a test guards
+/// its path set against this router so the two cannot drift silently.
+const OPENAPI: &str = include_str!("../openapi.json");
+
+/// Swagger UI shell. The UI assets load from a CDN — a dev-tool page, not the
+/// API: the service itself has no external dependency, and `/docs` degrades to
+/// "spec still readable at /openapi.json" when offline.
+const DOCS: &str = r#"<!doctype html><html><head>
+<meta charset="utf-8"><title>Paper Trading Challenge — API docs</title>
+<link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css">
+</head><body>
+<div id="ui"></div>
+<script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+<script>window.onload=()=>{SwaggerUIBundle({url:'/openapi.json',dom_id:'#ui',tryItOutEnabled:true,defaultModelsExpandDepth:0})}</script>
+</body></html>"#;
+
 pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/health", get(routes::health))
+        .route(
+            "/openapi.json",
+            get(|| async {
+                (
+                    [(axum::http::header::CONTENT_TYPE, "application/json")],
+                    OPENAPI,
+                )
+            }),
+        )
+        .route("/docs", get(|| async { Html(DOCS) }))
         .route(
             "/participants",
             post(routes::create_participant).get(routes::list_participants),

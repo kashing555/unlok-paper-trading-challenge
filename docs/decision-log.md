@@ -1077,3 +1077,23 @@ why this feature, like `fees_paid` before it, materialised retroactively:
 restarting the new binary on the running cockpit's log back-filled per-order
 fees for fills booked before the projection existed. The fee was in every
 `order_filled` row all along; the projection just started reading it.
+
+## 2026-08-30 — the contract, served: /openapi.json + /docs
+
+**A hand-written OpenAPI 3 contract, served by the API itself,** with Swagger
+UI at `/docs`. Hand-written rather than derived (utoipa was the alternative)
+because the spec here is a *decision document*: the descriptions carry the
+semantics no derive macro knows — the idempotent close, fail-closed valuation,
+strict parsing, the two execution modes, the numbers errors carry. The drift
+risk of a hand-written spec is closed the same way everything else here is:
+**a test** — the spec's path+method set is asserted equal to the router's, so
+the two cannot disagree silently.
+
+**The operations are tagged with the brief's seven interface bullets
+verbatim**, so opening /docs shows the requirement list as the table of
+contents — the spec reads as the brief, satisfied.
+
+The docs *page* loads Swagger's assets from a CDN and degrades to the raw
+contract when offline; the API itself gains no dependency. Verified live:
+Try-it-out executed GET /ladder from the browser and rendered alice ranked
+and carol `eligible: false`.
