@@ -17,6 +17,15 @@
     { "name": "Health" }
   ],
   "paths": {
+    "/events": {
+      "get": {
+        "tags": ["Health"],
+        "summary": "The journal, narrated — every event as a human sentence",
+        "description": "Not a second log: this IS the event log, read back with words on. Pass ?after=<seq> to fetch incrementally (the cockpit polls this with its last-seen seq, which is how anything you do here in Swagger appears in the cockpit's Journal within two seconds).",
+        "parameters": [{ "name": "after", "in": "query", "required": false, "schema": { "type": "integer", "default": 0 }, "description": "Only events with seq strictly greater than this" }],
+        "responses": { "200": { "description": "{ events: [{seq, at, kind, summary}] }" } }
+      }
+    },
     "/reset": {
       "post": {
         "tags": ["Health"],

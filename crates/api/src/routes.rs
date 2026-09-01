@@ -74,6 +74,85 @@ pub async fn reset(State(state): State<AppState>) -> Result<Json<Value>, AppErro
     })))
 }
 
+/// The journal, narrated: every event as a human sentence, so acting through
+/// Swagger (or anything else) is watchable from the cockpit. This is not a
+/// second log — it IS the log, read back with words on.
+pub async fn events(
+    State(state): State<AppState>,
+    axum::extract::Query(q): axum::extract::Query<dto::EventsQuery>,
+) -> Result<Json<Value>, AppError> {
+    use engine::Event as E;
+    let app = state.lock().await;
+    let engine = app.engine();
+    let rows: Vec<Value> = app
+        .events_after(q.after)?
+        .into_iter()
+        .map(|j| {
+            let summary = match &j.event {
+                E::ParticipantCreated {
+                    participant,
+                    starting_cash,
+                } => format!("participant {participant} created with {starting_cash}"),
+                E::OrderSubmitted { order } => format!(
+                    "cloid {}: {} {} {} {} @ {} submitted",
+                    order.id,
+                    order.participant,
+                    match order.side {
+                        Side::Buy => "buy",
+                        Side::Sell => "sell",
+                    },
+                    order.qty,
+                    order.symbol,
+                    order.limit_px
+                ),
+                E::OrderAcknowledged { id, broker_id } => {
+                    format!("cloid {id} acknowledged → oid {broker_id}")
+                }
+                E::OrderRejected { id, reason } => {
+                    format!("cloid {id} REJECTED ({reason:?})")
+                }
+                E::OrderFilled {
+                    id,
+                    exec_id,
+                    qty,
+                    px,
+                    fee,
+                } => match engine.order(*id) {
+                    Ok(o) => format!(
+                        "tid {exec_id}: fill {qty} {} @ {px} on cloid {id} ({}), fee {fee}",
+                        o.symbol, o.participant
+                    ),
+                    Err(_) => format!("tid {exec_id}: fill {qty} @ {px} on cloid {id}, fee {fee}"),
+                },
+                E::OrderCancelled { id } => format!("cloid {id} cancelled"),
+                E::OrderReplaced {
+                    original,
+                    replacement,
+                } => format!(
+                    "cloid {original} replaced → cloid {}: {} @ {}",
+                    replacement.id, replacement.qty, replacement.limit_px
+                ),
+                E::MarkUpdated { symbol, px } => format!("mark {symbol} → {px}"),
+                E::InstrumentUpserted { spec } => format!(
+                    "instrument {} listed: tick {}, lot {}",
+                    spec.symbol, spec.tick, spec.lot
+                ),
+                E::InstrumentRemoved { symbol } => format!("instrument {symbol} delisted"),
+                E::DayClosed { day, entries } => {
+                    format!("day {day} closed — {} participants ranked", entries.len())
+                }
+            };
+            json!({
+                "seq": j.seq,
+                "at": j.at.as_millis(),
+                "kind": j.event.kind(),
+                "summary": summary,
+            })
+        })
+        .collect();
+    Ok(Json(json!({ "events": rows })))
+}
+
 // ---- participants --------------------------------------------------------
 
 pub async fn create_participant(

@@ -81,6 +81,13 @@ pub struct CreateInstrument {
     pub spec: InstrumentBody,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct EventsQuery {
+    /// Return only events with seq strictly greater than this. Default 0 = all.
+    #[serde(default)]
+    pub after: u64,
+}
+
 // ---- responses -----------------------------------------------------------
 
 #[derive(Debug, Serialize)]

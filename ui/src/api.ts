@@ -64,6 +64,13 @@ export interface LeaderboardView {
   rows: LeaderboardRowView[]
 }
 
+export interface JournalRow {
+  seq: number
+  at: number
+  kind: string
+  summary: string
+}
+
 export interface TapeRow {
   execId: number
   clientOrderId: number
@@ -154,6 +161,8 @@ export const api = {
   portfolio: (id: string) => request<PortfolioView>('GET', `/participants/${id}/portfolio`),
   orders: () => request<{ orders: OrderView[] }>('GET', '/orders'),
   executions: () => request<{ executions: TapeRow[] }>('GET', '/executions'),
+  events: (after: number) =>
+    request<{ events: JournalRow[] }>('GET', `/events?after=${after}`),
   submitOrder: (o: {
     participant: string
     symbol: string

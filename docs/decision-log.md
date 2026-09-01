@@ -1255,3 +1255,23 @@ with a new oid column on the shared blotter) → Executions (the tape) →
 Rankings, so a run narrates on the left while the trio materialises on the
 right. One new read endpoint; the drift guard demanded its documentation
 before the build passed, as always.
+
+## 2026-08-30 — the Journal: the log, read back with words on
+
+**Operator ask:** the Console should match the Simulation page's panels — and
+acting through Swagger should be *watchable* as logs.
+
+The second ask has the shortest possible answer in this architecture: **the
+system already is a log; it just wasn't exposed as one.** `GET /events` reads
+the journal itself — no second stream, no logging framework — rendering each
+event as a human sentence ("tid 1: fill 40 AAPL @ 10.0000 on cloid 1 (alice),
+fee 0.2000"), with an `?after=<seq>` cursor so the cockpit polls incrementally
+rather than refetching the world's story every two seconds. Fill enrichment
+(symbol, participant) joins through the engine's own projections at read time.
+
+The Console's left column gains the Journal panel (newest first, seq + clock +
+sentence) beside the controls, and the right column gains the tape — so both
+pages now show the same five surfaces, and anything done in Swagger, curl or
+the cockpit itself narrates in the Journal within a poll. Reset clears the
+cursor. The drift guard demanded the contract entry before the build passed —
+sixth catch.

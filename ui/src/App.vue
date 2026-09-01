@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref } from 'vue'
 import Controls from './components/Controls.vue'
+import JournalPanel from './components/JournalPanel.vue'
 import OrdersPanel from './components/OrdersPanel.vue'
 import Portfolios from './components/Portfolios.vue'
+import TapePanel from './components/TapePanel.vue'
 import Rankings from './components/Rankings.vue'
 import SimulationPage from './components/SimulationPage.vue'
 import { api } from './api'
@@ -12,6 +14,8 @@ const s = useCockpit()
 
 async function resetWorld() {
   if (!window.confirm('Reset everything? Participants, orders, marks and closed days are all destroyed.')) return
+  s.journal = []
+  s.journalSeq = 0
   await s.attempt(() => api.reset())
 }
 // Two pages, one reactive switch. vue-router would be a dependency for a
@@ -61,10 +65,11 @@ onUnmounted(() => window.clearInterval(timer))
     <p v-else-if="s.lastError" class="banner">{{ s.lastError }}</p>
 
     <main v-if="page === 'console'">
-      <aside><Controls /></aside>
+      <aside class="stack"><Controls /><JournalPanel /></aside>
       <div class="stack">
         <Portfolios />
         <OrdersPanel />
+        <TapePanel />
         <Rankings />
       </div>
     </main>

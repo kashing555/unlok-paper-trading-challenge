@@ -6,6 +6,7 @@ import {
   type LadderView,
   type LeaderboardView,
   type OrderView,
+  type JournalRow,
   type PortfolioView,
   type TapeRow,
 } from './api'
@@ -21,6 +22,8 @@ export const useCockpit = defineStore('cockpit', {
     portfolios: {} as Record<string, PortfolioView>,
     orders: [] as OrderView[],
     executions: [] as TapeRow[],
+    journal: [] as JournalRow[],
+    journalSeq: 0,
     days: [] as string[],
     instruments: [] as InstrumentSpecView[],
     marks: [] as { symbol: string; px: string }[],
@@ -49,6 +52,15 @@ export const useCockpit = defineStore('cockpit', {
         this.participants = participants
         this.orders = orders
         this.executions = executions
+
+        // Incremental: only what happened since we last looked — which is how
+        // acting in Swagger shows up here without refetching the world's story.
+        const { events } = await api.events(this.journalSeq)
+        if (events.length) {
+          this.journal.unshift(...events.slice().reverse())
+          this.journal.splice(300)
+          this.journalSeq = events[events.length - 1]!.seq
+        }
         this.days = closedDays
         this.instruments = instruments
         this.marks = marks

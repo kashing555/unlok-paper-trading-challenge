@@ -105,6 +105,14 @@ impl App {
         Ok(())
     }
 
+    /// The journal after a sequence number — the log itself, for reading.
+    /// `after: 0` is everything; the cockpit polls with its last-seen seq.
+    pub fn events_after(&self, after: u64) -> Result<Vec<engine::Journaled>, AppError> {
+        let mut entries = self.log.read_all()?;
+        entries.retain(|e| e.seq > after);
+        Ok(entries)
+    }
+
     /// Mint the next client order id.
     ///
     /// Server-side because the id is **ours** (FIX `ClOrdID`) — the client is
@@ -156,6 +164,7 @@ const DOCS: &str = r#"<!doctype html><html><head>
 pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/health", get(routes::health))
+        .route("/events", get(routes::events))
         .route("/reset", post(routes::reset))
         .route(
             "/openapi.json",

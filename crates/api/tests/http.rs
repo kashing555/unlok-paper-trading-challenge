@@ -400,6 +400,7 @@ async fn the_openapi_contract_matches_the_router() {
     let mut served = vec![
         "GET /health",
         "POST /reset",
+        "GET /events",
         "POST /participants",
         "GET /participants",
         "GET /participants/{participantId}/portfolio",
@@ -664,4 +665,46 @@ async fn the_tape_lists_every_execution_across_orders_in_exec_id_order() {
     assert_eq!(rows[1]["participant"], "bob");
     assert_eq!(rows[2]["qty"], 60);
     assert_eq!(rows[0]["brokerOrderId"], 1);
+}
+
+#[tokio::test]
+async fn the_journal_narrates_and_the_cursor_filters() {
+    let state = app();
+    create(&state, "alice", "100000").await;
+    let id = submit(&state, "alice", "buy", 100, "10").await;
+    post(
+        &state,
+        "/broker/executions",
+        json!({"clientOrderId": id, "qty": 40, "px": "10"}),
+    )
+    .await;
+
+    let (status, all) = get(&state, "/events").await;
+    assert_eq!(status, StatusCode::OK);
+    let rows = all["events"].as_array().unwrap();
+    // participant_created + order_submitted + order_acknowledged + order_filled
+    assert_eq!(rows.len(), 4);
+    assert!(rows[0]["summary"]
+        .as_str()
+        .unwrap()
+        .contains("participant alice created"));
+    assert!(rows[1]["summary"]
+        .as_str()
+        .unwrap()
+        .contains("cloid 1: alice buy 100 AAPL"));
+    assert!(rows[2]["summary"]
+        .as_str()
+        .unwrap()
+        .contains("acknowledged → oid 1"));
+    assert!(rows[3]["summary"]
+        .as_str()
+        .unwrap()
+        .contains("tid 1: fill 40 AAPL @ 10.0000"));
+
+    // The cursor: after the ack's seq, only the fill remains.
+    let ack_seq = rows[2]["seq"].as_u64().unwrap();
+    let (_, tail) = get(&state, &format!("/events?after={ack_seq}")).await;
+    let tail_rows = tail["events"].as_array().unwrap();
+    assert_eq!(tail_rows.len(), 1);
+    assert_eq!(tail_rows[0]["kind"], "order_filled");
 }
