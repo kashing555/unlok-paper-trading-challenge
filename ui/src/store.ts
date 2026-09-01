@@ -1,5 +1,13 @@
 import { defineStore } from 'pinia'
-import { api, ApiError, type LadderView, type LeaderboardView, type OrderView, type PortfolioView } from './api'
+import {
+  api,
+  ApiError,
+  type InstrumentsView,
+  type LadderView,
+  type LeaderboardView,
+  type OrderView,
+  type PortfolioView,
+} from './api'
 
 // One store, polled. The backend is the source of truth for everything shown
 // here — nothing is derived locally and kept in step, for the same reason the
@@ -12,6 +20,8 @@ export const useCockpit = defineStore('cockpit', {
     portfolios: {} as Record<string, PortfolioView>,
     orders: [] as OrderView[],
     days: [] as string[],
+    instruments: null as InstrumentsView | null,
+    marks: [] as { symbol: string; px: string }[],
     board: null as LeaderboardView | null,
     selectedDay: '' as string,
     ladder: null as LadderView | null,
@@ -25,14 +35,19 @@ export const useCockpit = defineStore('cockpit', {
         this.connected = true
         this.events = Number(health.events ?? 0)
 
-        const [{ participants }, { orders }, { closedDays }] = await Promise.all([
-          api.participants(),
-          api.orders(),
-          api.days(),
-        ])
+        const [{ participants }, { orders }, { closedDays }, instruments, { marks }] =
+          await Promise.all([
+            api.participants(),
+            api.orders(),
+            api.days(),
+            api.instruments(),
+            api.marks(),
+          ])
         this.participants = participants
         this.orders = orders
         this.days = closedDays
+        this.instruments = instruments
+        this.marks = marks
 
         const books = await Promise.all(participants.map((p) => api.portfolio(p)))
         this.portfolios = Object.fromEntries(books.map((b) => [b.participant, b]))

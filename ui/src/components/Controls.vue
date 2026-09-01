@@ -56,13 +56,26 @@ function submit() {
           <button class="primary" :disabled="!s.participants.length" @click="submit">submit</button>
         </div>
         <p class="dim" style="margin:6px 0 0;font-size:12px">
-          Symbols are upper-case only — a lower-case one is rejected rather than
-          corrected, because two spellings of one key file executions twice.
+          <template v-if="s.instruments?.symbols">
+            Tradable: <span v-for="sym in s.instruments.symbols" :key="sym" class="tag" style="margin-right:4px">{{ sym }}</span>
+            <template v-if="s.instruments.maxOrderQty"> · max qty {{ s.instruments.maxOrderQty }}</template>
+            — anything else is REJECTED by the broker.
+          </template>
+          <template v-else>
+            Any upper-case symbol is tradable — lower-case is rejected, not
+            corrected, because two spellings of one key file executions twice.
+          </template>
         </p>
       </div>
 
       <div>
         <h3>Update mark</h3>
+        <p v-if="s.marks.length" class="dim" style="margin:0 0 6px;font-size:12px">
+          Current:
+          <span v-for="m in s.marks" :key="m.symbol" class="tag" style="margin-right:4px">
+            {{ m.symbol }} {{ m.px }}
+          </span>
+        </p>
         <div class="row">
           <input v-model="mark.symbol" placeholder="SYMBOL" style="flex:1" />
           <input v-model="mark.px" placeholder="price" class="num" style="flex:1" />

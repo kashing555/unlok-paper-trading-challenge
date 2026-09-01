@@ -394,6 +394,8 @@ async fn the_openapi_contract_matches_the_router() {
         "DELETE /orders/{id}",
         "PUT /orders/{id}",
         "POST /broker/executions",
+        "GET /instruments",
+        "GET /market/prices",
         "POST /market/prices",
         "GET /days",
         "POST /days/{day}/close",
@@ -409,4 +411,53 @@ async fn the_openapi_contract_matches_the_router() {
 
     let (status, _) = get(&state, "/docs").await;
     assert_eq!(status, StatusCode::OK);
+}
+
+#[tokio::test]
+async fn reference_data_is_discoverable_not_learned_by_rejection() {
+    use broker::{FeeSchedule, FillPolicy, Limits, MockBroker};
+    use domain::{Qty, Symbol};
+
+    // Unrestricted broker: symbols is null.
+    let state = app();
+    let (status, body) = get(&state, "/instruments").await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(body["symbols"].is_null());
+    assert!(body["maxOrderQty"].is_null());
+
+    // Restricted broker: the allowlist and cap are readable up front.
+    let mut known = std::collections::BTreeSet::new();
+    known.insert(Symbol::parse("AAPL").unwrap());
+    known.insert(Symbol::parse("MSFT").unwrap());
+    let broker = MockBroker::new(
+        7,
+        FillPolicy::Complete,
+        FeeSchedule::FREE,
+        Limits {
+            known_symbols: known,
+            max_order_qty: Some(Qty::new(500).unwrap()),
+        },
+    );
+    let state = Arc::new(Mutex::new(
+        App::open(SqliteLog::in_memory().unwrap(), broker).unwrap(),
+    ));
+    let (_, body) = get(&state, "/instruments").await;
+    assert_eq!(body["symbols"], serde_json::json!(["AAPL", "MSFT"]));
+    assert_eq!(body["maxOrderQty"], 500);
+
+    // Marks are readable back, in symbol order, exactly as posted.
+    create(&state, "alice", "1000").await;
+    let (_, empty) = get(&state, "/market/prices").await;
+    assert_eq!(empty["marks"].as_array().unwrap().len(), 0);
+    post(
+        &state,
+        "/market/prices",
+        json!([{"symbol":"MSFT","px":"21"},{"symbol":"AAPL","px":"11.5"}]),
+    )
+    .await;
+    let (_, marks) = get(&state, "/market/prices").await;
+    assert_eq!(
+        marks["marks"],
+        json!([{"symbol":"AAPL","px":"11.5000"},{"symbol":"MSFT","px":"21.0000"}])
+    );
 }

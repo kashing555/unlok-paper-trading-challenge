@@ -60,6 +60,11 @@ impl Marks {
     pub fn get(&self, symbol: &Symbol) -> Option<Px> {
         self.0.get(symbol).copied()
     }
+
+    /// Every current mark, in symbol order (`BTreeMap`, so deterministic).
+    pub fn iter(&self) -> impl Iterator<Item = (&Symbol, Px)> {
+        self.0.iter().map(|(s, px)| (s, *px))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -257,6 +257,44 @@ pub async fn execute_order(
     Ok(Json(dto::order_view(engine.order(id)?, engine.fee_of(id))))
 }
 
+// ---- reference data ------------------------------------------------------
+
+/// The tradable universe — the venue's reference data, so a client discovers
+/// what it may trade by asking, not by being rejected. `symbols: null` means
+/// unrestricted.
+pub async fn instruments(State(state): State<AppState>) -> Json<Value> {
+    let app = state.lock().await;
+    let limits = app.engine().broker_limits();
+    let symbols: Option<Vec<String>> = if limits.known_symbols.is_empty() {
+        None
+    } else {
+        Some(
+            limits
+                .known_symbols
+                .iter()
+                .map(ToString::to_string)
+                .collect(),
+        )
+    };
+    Json(json!({
+        "symbols": symbols,
+        "maxOrderQty": limits.max_order_qty.map(|q| q.get()),
+    }))
+}
+
+/// Current marks, readable — the counterpart of POSTing them, so a tester can
+/// verify what the market is currently saying without opening a position.
+pub async fn marks(State(state): State<AppState>) -> Json<Value> {
+    let app = state.lock().await;
+    let marks: Vec<Value> = app
+        .engine()
+        .marks()
+        .iter()
+        .map(|(symbol, px)| json!({ "symbol": symbol.to_string(), "px": px.to_string() }))
+        .collect();
+    Json(json!({ "marks": marks }))
+}
+
 // ---- market data ---------------------------------------------------------
 
 pub async fn update_marks(

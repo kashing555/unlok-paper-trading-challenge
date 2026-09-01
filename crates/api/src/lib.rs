@@ -139,7 +139,11 @@ pub fn router(state: AppState) -> Router {
         .route("/orders/{id}", delete(routes::cancel_order))
         .route("/orders/{id}", put(routes::replace_order))
         .route("/broker/executions", post(routes::execute_order))
-        .route("/market/prices", post(routes::update_marks))
+        .route("/instruments", get(routes::instruments))
+        .route(
+            "/market/prices",
+            post(routes::update_marks).get(routes::marks),
+        )
         .route("/days/{day}/close", post(routes::close_day))
         .route("/days/{day}/leaderboard", get(routes::leaderboard))
         .route("/days", get(routes::closed_days))

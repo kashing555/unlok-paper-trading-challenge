@@ -142,7 +142,20 @@
         }
       }
     },
+    "/instruments": {
+      "get": {
+        "tags": ["Submit, cancel, and replace orders"],
+        "summary": "The tradable universe (venue reference data)",
+        "description": "What the broker will accept — FIX would call this a SecurityList. `symbols: null` means any well-formed symbol is tradable; otherwise only the listed ones, and anything else comes back REJECTED. Ask first; don't discover by rejection.",
+        "responses": { "200": { "description": "{ symbols: [\"AAPL\", ...] | null, maxOrderQty: n | null }" } }
+      }
+    },
     "/market/prices": {
+      "get": {
+        "tags": ["Update market prices"],
+        "summary": "Current marks, readable",
+        "responses": { "200": { "description": "{ marks: [{symbol, px}] } in symbol order" } }
+      },
       "post": {
         "tags": ["Update market prices"],
         "summary": "Update marks (batch) — this is the market moving",

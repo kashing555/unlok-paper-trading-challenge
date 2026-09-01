@@ -108,6 +108,11 @@ pub trait Broker {
     /// The commission on a notional, for executions driven explicitly rather
     /// than generated here.
     fn fee_on(&self, notional: Money) -> Result<Money, DomainError>;
+
+    /// The venue's reference data: what may be traded at all. FIX calls this a
+    /// SecurityList; a venue that cannot answer it is a venue you discover by
+    /// being rejected, which is not discovery.
+    fn limits(&self) -> &Limits;
 }
 
 pub struct MockBroker {
@@ -198,6 +203,10 @@ impl Broker for MockBroker {
 
     fn fee_on(&self, notional: Money) -> Result<Money, DomainError> {
         self.fees.of(notional)
+    }
+
+    fn limits(&self) -> &Limits {
+        &self.limits
     }
 }
 

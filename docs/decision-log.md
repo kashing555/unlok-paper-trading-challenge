@@ -1097,3 +1097,25 @@ The docs *page* loads Swagger's assets from a CDN and degrades to the raw
 contract when offline; the API itself gains no dependency. Verified live:
 Try-it-out executed GET /ladder from the browser and rendered alice ranked
 and carol `eligible: false`.
+
+## 2026-08-30 — reference data: found by using our own walkthrough
+
+**The gap:** the first person to actually run the test card (the operator, not
+the author) asked how a client learns which symbols are tradable — and the
+answer was "by being rejected." The allowlist lived in server config and the
+startup log; the API never exposed it. Same one layer down: marks could be
+POSTed but not read back. Discovery by rejection is not discovery.
+
+**The fix, shaped the institutional way:** reference data is the venue's to
+answer — FIX calls it a SecurityList — so `limits()` joined the `Broker` port,
+and `GET /instruments` returns the allowlist (`symbols: null` = unrestricted)
+plus any size cap. `GET /market/prices` returns current marks in symbol order,
+the read counterpart of the existing write. Both are in the OpenAPI contract
+under the brief bullets they serve, the drift-guard test learned the two new
+routes, and the cockpit now uses them: the submit form shows the tradable
+universe as chips, and the mark form shows what the market currently says.
+
+Tested both ways: unrestricted broker answers `symbols: null`; a restricted one
+lists exactly its universe and cap; marks read back byte-identical to what was
+posted, sorted. The walkthrough server was upgraded mid-walkthrough and the
+operator's three participants survived the restart by replay — as designed.

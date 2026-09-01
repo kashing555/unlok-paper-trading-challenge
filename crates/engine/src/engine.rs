@@ -148,6 +148,11 @@ impl<B: Broker> Engine<B> {
         &self.marks
     }
 
+    /// The broker's reference data — what is tradable and any size cap.
+    pub fn broker_limits(&self) -> &broker::Limits {
+        self.broker.limits()
+    }
+
     /// Fees accrued on one order across all its fills. Zero for an order that
     /// has none — including a replacement, which starts fresh; fees stay with
     /// the order that incurred them.
