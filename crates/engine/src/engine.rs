@@ -16,9 +16,9 @@ use std::collections::BTreeMap;
 
 use broker::{Broker, BrokerError};
 use domain::{
-    lifecycle, ClientOrderId, DomainError, Fill, Marks, Money, NewOrder, Order, OrderEvent,
-    ParticipantId, Portfolio, PortfolioError, Px, Qty, Side, Symbol, Timestamp, TradingDay,
-    TransitionError,
+    lifecycle, ClientOrderId, DomainError, Fill, InstrumentSpec, Marks, Money, NewOrder, Order,
+    OrderEvent, ParticipantId, Portfolio, PortfolioError, Px, Qty, RejectReason, Side, Symbol,
+    Timestamp, TradingDay, TransitionError,
 };
 use scoring::{ladder, leaderboard, DayInput, LadderRow, Leaderboard, ScoringError};
 use thiserror::Error;
@@ -55,6 +55,21 @@ pub enum EngineError {
     #[error("day {0} has not been closed")]
     DayNotClosed(TradingDay),
 
+    #[error("no such instrument: {0}")]
+    UnknownInstrument(Symbol),
+
+    #[error("instrument already listed: {0}")]
+    DuplicateInstrument(Symbol),
+
+    #[error(
+        "cannot delist {symbol}: {working} working order(s) and {held} position(s) reference it"
+    )]
+    InstrumentInUse {
+        symbol: Symbol,
+        working: usize,
+        held: usize,
+    },
+
     #[error("cannot close {day}: {latest} is already closed and days close in order")]
     DayOutOfOrder { day: TradingDay, latest: TradingDay },
 
@@ -77,6 +92,10 @@ pub struct Engine<B: Broker> {
     orders: BTreeMap<ClientOrderId, Order>,
     marks: Marks,
     seq: u64,
+    /// The security master. Empty = unrestricted (permissive defaults for any
+    /// well-formed symbol); non-empty = allowlist, venue-style REJECTED for
+    /// anything off it or off its grids.
+    instruments: BTreeMap<Symbol, InstrumentSpec>,
     /// Fees accrued per order — an engine projection over `OrderFilled`, like
     /// `day_turnover`. Deliberately NOT in `OrderState`: the lifecycle stays
     /// about what executed (gross), the accountant stays the engine (A1's
@@ -103,6 +122,7 @@ impl<B: Broker> Engine<B> {
             marks: Marks::new(),
             seq: 0,
             order_fees: BTreeMap::new(),
+            instruments: BTreeMap::new(),
             day_turnover: BTreeMap::new(),
             day_fills: BTreeMap::new(),
             last_close: BTreeMap::new(),
@@ -148,9 +168,43 @@ impl<B: Broker> Engine<B> {
         &self.marks
     }
 
-    /// The broker's reference data — what is tradable and any size cap.
-    pub fn broker_limits(&self) -> &broker::Limits {
-        self.broker.limits()
+    /// The security master, in symbol order. Empty means unrestricted.
+    pub fn instruments(&self) -> impl Iterator<Item = &InstrumentSpec> {
+        self.instruments.values()
+    }
+
+    pub fn instrument(&self, symbol: &Symbol) -> Option<&InstrumentSpec> {
+        self.instruments.get(symbol)
+    }
+
+    /// The spec an order on `symbol` is judged against: the listed one, or —
+    /// while the registry is empty — permissive defaults. `None` only when a
+    /// non-empty registry does not list the symbol.
+    fn effective_spec(&self, symbol: &Symbol) -> Option<InstrumentSpec> {
+        if self.instruments.is_empty() {
+            Some(InstrumentSpec::permissive(symbol.clone()))
+        } else {
+            self.instruments.get(symbol).cloned()
+        }
+    }
+
+    /// Venue-style reference-data check: the reason this order would be
+    /// REJECTED, if any. An off-grid order is a *recorded rejection*, exactly
+    /// as an exchange answers it — not a refused command that never existed.
+    fn venue_reject_reason(&self, order: &Order) -> Option<RejectReason> {
+        let Some(spec) = self.effective_spec(&order.symbol) else {
+            return Some(RejectReason::UnknownSymbol);
+        };
+        if !spec.px_on_tick(order.limit_px) {
+            return Some(RejectReason::PriceOffTick);
+        }
+        if !spec.qty_on_lot(order.qty) {
+            return Some(RejectReason::QtyOffLot);
+        }
+        if spec.max_order_qty.is_some_and(|max| order.qty > max) {
+            return Some(RejectReason::ExceedsSizeLimit);
+        }
+        None
     }
 
     /// Fees accrued on one order across all its fills. Zero for an order that
@@ -340,6 +394,17 @@ impl<B: Broker> Engine<B> {
                 // Built here only to validate; `apply` rebuilds it from the
                 // same terms, so the log and the projection cannot diverge.
                 let order = Order::submit(terms.clone())?;
+
+                // Reference data first, venue-style: an off-list or off-grid
+                // order is submitted and REJECTED — a recorded fact, exactly
+                // as an exchange answers it — not a command that never was.
+                if let Some(reason) = self.venue_reject_reason(&order) {
+                    return Ok(vec![
+                        Event::OrderSubmitted { order: terms },
+                        Event::OrderRejected { id, reason },
+                    ]);
+                }
+
                 self.check_affordable(&order, None)?;
 
                 let response = self.broker.on_submit(&order);
@@ -368,6 +433,30 @@ impl<B: Broker> Engine<B> {
                 }
                 let original = self.order(id)?;
                 let outcome = original.replace(replacement_id, qty, limit_px, at)?;
+
+                // The replacement faces the venue's reference data like any
+                // fresh order: new terms, new judgment.
+                if let Some(reason) = self.venue_reject_reason(&outcome.replacement) {
+                    let terms = NewOrder {
+                        id: replacement_id,
+                        participant: outcome.replacement.participant.clone(),
+                        symbol: outcome.replacement.symbol.clone(),
+                        side: outcome.replacement.side,
+                        qty,
+                        limit_px,
+                        at,
+                    };
+                    return Ok(vec![
+                        Event::OrderReplaced {
+                            original: id,
+                            replacement: terms,
+                        },
+                        Event::OrderRejected {
+                            id: replacement_id,
+                            reason,
+                        },
+                    ]);
+                }
 
                 // The original's reservation is released by this same command,
                 // so it must not count against the replacement.
@@ -407,6 +496,44 @@ impl<B: Broker> Engine<B> {
             }
 
             Command::UpdateMark { symbol, px } => Ok(vec![Event::MarkUpdated { symbol, px }]),
+
+            Command::CreateInstrument { spec } => {
+                if self.instruments.contains_key(&spec.symbol) {
+                    return Err(EngineError::DuplicateInstrument(spec.symbol));
+                }
+                Ok(vec![Event::InstrumentUpserted { spec }])
+            }
+
+            Command::UpdateInstrument { spec } => {
+                if !self.instruments.contains_key(&spec.symbol) {
+                    return Err(EngineError::UnknownInstrument(spec.symbol));
+                }
+                Ok(vec![Event::InstrumentUpserted { spec }])
+            }
+
+            Command::RemoveInstrument { symbol } => {
+                if !self.instruments.contains_key(&symbol) {
+                    return Err(EngineError::UnknownInstrument(symbol));
+                }
+                let working = self
+                    .orders
+                    .values()
+                    .filter(|o| o.symbol == symbol && !o.state.is_terminal())
+                    .count();
+                let held = self
+                    .participants
+                    .values()
+                    .filter(|p| p.position(&symbol).is_some())
+                    .count();
+                if working > 0 || held > 0 {
+                    return Err(EngineError::InstrumentInUse {
+                        symbol,
+                        working,
+                        held,
+                    });
+                }
+                Ok(vec![Event::InstrumentRemoved { symbol }])
+            }
 
             Command::CloseDay { day } => {
                 // Idempotent: a published ranking that silently recomputes is
@@ -586,6 +713,14 @@ impl<B: Broker> Engine<B> {
 
             Event::MarkUpdated { symbol, px } => {
                 self.marks.set(symbol.clone(), *px);
+            }
+
+            Event::InstrumentUpserted { spec } => {
+                self.instruments.insert(spec.symbol.clone(), spec.clone());
+            }
+
+            Event::InstrumentRemoved { symbol } => {
+                self.instruments.remove(symbol);
             }
 
             Event::DayClosed { day, entries } => {

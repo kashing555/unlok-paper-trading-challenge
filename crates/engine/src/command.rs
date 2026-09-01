@@ -5,7 +5,9 @@
 //! [`crate::Engine::execute`] by the caller, because nothing in this system
 //! reads a clock (`.claude/principles.md` §6).
 
-use domain::{ClientOrderId, Money, ParticipantId, Px, Qty, Side, Symbol, TradingDay};
+use domain::{
+    ClientOrderId, InstrumentSpec, Money, ParticipantId, Px, Qty, Side, Symbol, TradingDay,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Command {
@@ -44,6 +46,23 @@ pub enum Command {
     UpdateMark {
         symbol: Symbol,
         px: Px,
+    },
+    /// Register a tradable instrument. While the registry is empty every
+    /// well-formed symbol trades on permissive defaults; the first
+    /// registration switches the venue to allowlist mode.
+    CreateInstrument {
+        spec: InstrumentSpec,
+    },
+    /// Replace an instrument's spec. Working orders were validated against the
+    /// spec at submission and are not retroactively re-checked — the venue
+    /// changed its rules, it did not unwind your order.
+    UpdateInstrument {
+        spec: InstrumentSpec,
+    },
+    /// Delist. Refused while any working order or open position exists on the
+    /// symbol: delisting must not strand what it cannot unwind.
+    RemoveInstrument {
+        symbol: Symbol,
     },
     /// Snapshot the day and publish its results. Idempotent: closing an
     /// already-closed day produces no events and changes nothing, because a

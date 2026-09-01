@@ -73,6 +73,13 @@ fn every_event() -> Vec<Event> {
             symbol: sym("MSFT"),
             px: px("20.1234"),
         },
+        Event::InstrumentUpserted {
+            spec: domain::InstrumentSpec::new(sym("AAPL"), px("0.0100"), qty(1), Some(qty(500)))
+                .unwrap(),
+        },
+        Event::InstrumentRemoved {
+            symbol: sym("TSLA"),
+        },
         Event::DayClosed {
             day: domain::TradingDay::parse("2026-08-29").unwrap(),
             entries: vec![scoring::DayInput {

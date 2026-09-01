@@ -55,6 +55,25 @@ impl AppError {
             Self::Engine(E::DuplicateParticipant(_)) => {
                 (StatusCode::CONFLICT, "duplicate-participant", None)
             }
+            Self::Engine(E::UnknownInstrument(_)) => {
+                (StatusCode::NOT_FOUND, "unknown-instrument", None)
+            }
+            Self::Engine(E::DuplicateInstrument(_)) => {
+                (StatusCode::CONFLICT, "duplicate-instrument", None)
+            }
+            Self::Engine(E::InstrumentInUse {
+                symbol,
+                working,
+                held,
+            }) => (
+                StatusCode::CONFLICT,
+                "instrument-in-use",
+                Some(json!({
+                    "symbol": symbol.to_string(),
+                    "workingOrders": working,
+                    "positions": held,
+                })),
+            ),
             Self::Engine(E::DuplicateOrder(_)) => (StatusCode::CONFLICT, "duplicate-order", None),
 
             // The state is in the body on purpose: "you cannot cancel that" is

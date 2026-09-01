@@ -114,14 +114,24 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   return json as T
 }
 
-export interface InstrumentsView {
-  symbols: string[] | null
+export interface InstrumentSpecView {
+  symbol: string
+  tick: string
+  lot: number
   maxOrderQty: number | null
 }
 
 export const api = {
   health: () => request<Record<string, unknown>>('GET', '/health'),
-  instruments: () => request<InstrumentsView>('GET', '/instruments'),
+  instruments: () =>
+    request<{ instruments: InstrumentSpecView[] }>('GET', '/instruments'),
+  createInstrument: (symbol: string, tick: string, maxOrderQty?: number) =>
+    request<InstrumentSpecView>('POST', '/instruments', {
+      symbol,
+      tick,
+      ...(maxOrderQty !== undefined ? { maxOrderQty } : {}),
+    }),
+  removeInstrument: (symbol: string) => request('DELETE', `/instruments/${symbol}`),
   marks: () => request<{ marks: { symbol: string; px: string }[] }>('GET', '/market/prices'),
   participants: () => request<{ participants: string[] }>('GET', '/participants'),
   createParticipant: (id: string, startingCash: string) =>

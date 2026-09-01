@@ -9,6 +9,11 @@ const create = reactive({ id: '', cash: '100000' })
 const order = reactive({ participant: '', symbol: 'AAPL', side: 'buy', qty: 100, limitPx: '10' })
 const mark = reactive({ symbol: 'AAPL', px: '10' })
 const day = reactive({ value: new Date().toISOString().slice(0, 10) })
+const inst = reactive({ symbol: '', tick: '0.01' })
+
+async function addInstrument() {
+  if (await s.attempt(() => api.createInstrument(inst.symbol, inst.tick))) inst.symbol = ''
+}
 
 async function addParticipant() {
   if (await s.attempt(() => api.createParticipant(create.id, create.cash))) create.id = ''
@@ -56,15 +61,42 @@ function submit() {
           <button class="primary" :disabled="!s.participants.length" @click="submit">submit</button>
         </div>
         <p class="dim" style="margin:6px 0 0;font-size:12px">
-          <template v-if="s.instruments?.symbols">
-            Tradable: <span v-for="sym in s.instruments.symbols" :key="sym" class="tag" style="margin-right:4px">{{ sym }}</span>
-            <template v-if="s.instruments.maxOrderQty"> · max qty {{ s.instruments.maxOrderQty }}</template>
-            — anything else is REJECTED by the broker.
+          <template v-if="s.instruments.length">
+            Tradable:
+            <span
+              v-for="i in s.instruments"
+              :key="i.symbol"
+              class="tag"
+              style="margin-right:4px"
+              :title="`tick ${i.tick} · lot ${i.lot}` + (i.maxOrderQty ? ` · max ${i.maxOrderQty}` : '')"
+            >{{ i.symbol }} <span style="opacity:.6">{{ i.tick }}</span></span>
+            — off-list or off-tick orders come back REJECTED.
           </template>
           <template v-else>
-            Any upper-case symbol is tradable — lower-case is rejected, not
-            corrected, because two spellings of one key file executions twice.
+            Any upper-case symbol is tradable (tick 0.0001) — lower-case is
+            rejected, not corrected: two spellings of one key file executions
+            twice.
           </template>
+        </p>
+      </div>
+
+      <div>
+        <h3>Instruments</h3>
+        <p v-if="s.instruments.length" style="margin:0 0 6px">
+          <span v-for="i in s.instruments" :key="i.symbol" class="tag" style="margin-right:4px">
+            {{ i.symbol }}
+            <a href="#" style="margin-left:2px" title="delist" @click.prevent="s.attempt(() => api.removeInstrument(i.symbol))">×</a>
+          </span>
+        </p>
+        <div class="row">
+          <input v-model="inst.symbol" placeholder="SYMBOL" style="flex:1" />
+          <input v-model="inst.tick" placeholder="tick e.g. 0.01" class="num" style="flex:1" />
+          <button :disabled="!inst.symbol || !inst.tick" @click="addInstrument">list</button>
+        </div>
+        <p class="dim" style="margin:6px 0 0;font-size:12px">
+          The security master. Empty = unrestricted; the first listing switches
+          the venue to allowlist mode. Delisting is refused while orders or
+          positions reference the symbol.
         </p>
       </div>
 

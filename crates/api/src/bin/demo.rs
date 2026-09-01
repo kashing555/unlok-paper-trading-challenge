@@ -10,7 +10,7 @@
 use std::error::Error;
 
 use api::App;
-use broker::{FeeSchedule, FillPolicy, Limits, MockBroker};
+use broker::{FeeSchedule, FillPolicy, MockBroker};
 use domain::{ClientOrderId, Money, ParticipantId, Px, Qty, Side, Symbol, Timestamp, TradingDay};
 use engine::Command;
 use store::SqliteLog;
@@ -38,7 +38,6 @@ impl Demo {
             SEED,
             FillPolicy::Partial { max_slices: 3 },
             FeeSchedule { bps: FEE_BPS },
-            Limits::default(),
         );
         Ok(Self {
             app: App::open(SqliteLog::in_memory()?, broker)?,

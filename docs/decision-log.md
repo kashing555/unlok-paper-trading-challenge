@@ -1119,3 +1119,39 @@ Tested both ways: unrestricted broker answers `symbols: null`; a restricted one
 lists exactly its universe and cap; marks read back byte-identical to what was
 posted, sorted. The walkthrough server was upgraded mid-walkthrough and the
 operator's three participants survived the restart by replay — as designed.
+
+## 2026-08-30 — the security master: instruments become first-class, event-sourced
+
+**The ask:** full CRUD on instruments, with the spec the earlier tick-size
+conversation identified — minimum price increment, lot step, executable size
+limit. **The architectural consequence, embraced rather than dodged:** editable
+reference data is *state*, and state here means events. `InstrumentUpserted` /
+`InstrumentRemoved` join the log; the registry is a fold; replay rebuilds it;
+the snapshot parity test now covers it. `PTC_SYMBOLS` stopped being broker
+config and became a **seed** — applied once, as journalled events, only into an
+empty registry, so a restart never fights what the API has since edited.
+
+**Violations are venue-style rejections, not refused commands.** An off-list,
+off-tick, off-lot or over-cap submission produces a *recorded `REJECTED` order*
+carrying `UnknownSymbol`, `PriceOffTick`, `QtyOffLot` or `ExceedsSizeLimit` —
+exactly as an exchange answers it, and exactly the Reg NMS behaviour discussed
+for stocks: verified live by setting AAPL to a penny tick over PUT and watching
+a $10.0050 limit come back REJECTED. Replacements face the same gate. Cash and
+position stay engine refusals: the venue cannot see a book.
+
+**The broker slimmed accordingly** — this morning's `limits()` on the Broker
+port lasted half a day and is superseded: reference data belongs to the engine's
+master, so the mock now only acks and slices. Two broker tests moved to the
+engine where the behaviour now lives. Delisting is guarded: refused with counts
+while any working order or position references the symbol — a venue must not
+strand what it cannot unwind. Spec changes do not retroactively re-judge working
+orders: the venue changed its rules; it did not unwind your order.
+
+**The drift guard earned its keep in real time:** four routes were added and
+the OpenAPI test failed the build until the contract documented them — which is
+precisely the failure mode it was written to catch, demonstrated same-day. And
+one honest limitation named in the README: a tick here is one value per symbol,
+not a function of price, so the *conditional* regulatory tick (penny above $1)
+remains unmodelled.
+
+103 tests; cockpit gains an instruments admin block and per-symbol tick chips.

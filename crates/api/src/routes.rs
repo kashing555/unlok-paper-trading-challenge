@@ -259,27 +259,78 @@ pub async fn execute_order(
 
 // ---- reference data ------------------------------------------------------
 
-/// The tradable universe — the venue's reference data, so a client discovers
-/// what it may trade by asking, not by being rejected. `symbols: null` means
-/// unrestricted.
+fn instrument_json(spec: &domain::InstrumentSpec) -> Value {
+    json!({
+        "symbol": spec.symbol.to_string(),
+        "tick": spec.tick.to_string(),
+        "lot": spec.lot.get(),
+        "maxOrderQty": spec.max_order_qty.map(domain::Qty::get),
+    })
+}
+
+fn parse_spec(sym: &str, body: &dto::InstrumentBody) -> Result<domain::InstrumentSpec, AppError> {
+    Ok(domain::InstrumentSpec::new(
+        symbol(sym)?,
+        price(&body.tick)?,
+        quantity(body.lot.unwrap_or(1))?,
+        body.max_order_qty.map(quantity).transpose()?,
+    )?)
+}
+
+/// The security master — the venue's reference data, so a client discovers
+/// what it may trade by asking, not by being rejected. An empty list means
+/// unrestricted: any well-formed symbol on permissive grids (tick 0.0001,
+/// lot 1).
 pub async fn instruments(State(state): State<AppState>) -> Json<Value> {
     let app = state.lock().await;
-    let limits = app.engine().broker_limits();
-    let symbols: Option<Vec<String>> = if limits.known_symbols.is_empty() {
-        None
-    } else {
-        Some(
-            limits
-                .known_symbols
-                .iter()
-                .map(ToString::to_string)
-                .collect(),
-        )
-    };
-    Json(json!({
-        "symbols": symbols,
-        "maxOrderQty": limits.max_order_qty.map(|q| q.get()),
-    }))
+    let instruments: Vec<Value> = app.engine().instruments().map(instrument_json).collect();
+    Json(json!({ "instruments": instruments }))
+}
+
+pub async fn get_instrument(
+    State(state): State<AppState>,
+    Path(sym): Path<String>,
+) -> Result<Json<Value>, AppError> {
+    let sym = symbol(&sym)?;
+    let app = state.lock().await;
+    app.engine()
+        .instrument(&sym)
+        .map(instrument_json)
+        .map(Json)
+        .ok_or(AppError::Engine(engine::EngineError::UnknownInstrument(
+            sym,
+        )))
+}
+
+pub async fn create_instrument(
+    State(state): State<AppState>,
+    Json(body): Json<dto::CreateInstrument>,
+) -> Result<(StatusCode, Json<Value>), AppError> {
+    let spec = parse_spec(&body.symbol, &body.spec)?;
+    let mut app = state.lock().await;
+    app.execute(now(), Command::CreateInstrument { spec: spec.clone() })?;
+    Ok((StatusCode::CREATED, Json(instrument_json(&spec))))
+}
+
+pub async fn update_instrument(
+    State(state): State<AppState>,
+    Path(sym): Path<String>,
+    Json(body): Json<dto::InstrumentBody>,
+) -> Result<Json<Value>, AppError> {
+    let spec = parse_spec(&sym, &body)?;
+    let mut app = state.lock().await;
+    app.execute(now(), Command::UpdateInstrument { spec: spec.clone() })?;
+    Ok(Json(instrument_json(&spec)))
+}
+
+pub async fn remove_instrument(
+    State(state): State<AppState>,
+    Path(sym): Path<String>,
+) -> Result<StatusCode, AppError> {
+    let sym = symbol(&sym)?;
+    let mut app = state.lock().await;
+    app.execute(now(), Command::RemoveInstrument { symbol: sym })?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 /// Current marks, readable — the counterpart of POSTing them, so a tester can

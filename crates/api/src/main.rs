@@ -7,8 +7,9 @@ use std::sync::Arc;
 use api::{router, App, AppState};
 use std::collections::BTreeSet;
 
-use broker::{FeeSchedule, FillPolicy, Limits, MockBroker};
-use domain::{Qty, Symbol};
+use broker::{FeeSchedule, FillPolicy, MockBroker};
+use domain::{InstrumentSpec, Px, Qty, Symbol};
+use engine::Command;
 use store::SqliteLog;
 use tokio::sync::Mutex;
 
@@ -103,13 +104,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         FeeSchedule {
             bps: config.fee_bps,
         },
-        Limits {
-            known_symbols: config.symbols.clone(),
-            max_order_qty: config.max_order_qty,
-        },
     );
 
-    let state: AppState = Arc::new(Mutex::new(App::open(log, broker)?));
+    let mut app = App::open(log, broker)?;
+
+    // PTC_SYMBOLS seeds the security master — as journalled events, once. If
+    // the log already carries instruments the env is ignored: the log is the
+    // authority and a restart must not fight what the API has since edited.
+    if app.engine().instruments().next().is_none() && !config.symbols.is_empty() {
+        for symbol in &config.symbols {
+            app.execute(
+                api::now(),
+                Command::CreateInstrument {
+                    spec: InstrumentSpec::new(
+                        symbol.clone(),
+                        Px::MIN_TICK,
+                        Qty::ONE,
+                        config.max_order_qty,
+                    )?,
+                },
+            )?;
+        }
+    }
+    let state: AppState = Arc::new(Mutex::new(app));
     let listener = tokio::net::TcpListener::bind(&config.addr).await?;
 
     println!("ptc listening on http://{}", config.addr);
@@ -118,22 +135,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "  broker   seed={} fee={}bp slices<={}",
         config.seed, config.fee_bps, config.max_slices
     );
-    println!(
-        "  limits   symbols={} maxQty={}",
-        if config.symbols.is_empty() {
-            "any".to_owned()
-        } else {
-            config
-                .symbols
-                .iter()
-                .map(ToString::to_string)
-                .collect::<Vec<_>>()
-                .join(",")
-        },
-        config
-            .max_order_qty
-            .map_or("none".to_owned(), |q| q.to_string())
-    );
+    {
+        let app = state.lock().await;
+        let listed: Vec<String> = app
+            .engine()
+            .instruments()
+            .map(|i| i.symbol.to_string())
+            .collect();
+        println!(
+            "  master   {}",
+            if listed.is_empty() {
+                "unrestricted (empty registry)".to_owned()
+            } else {
+                listed.join(",")
+            }
+        );
+    }
 
     axum::serve(listener, router(state))
         .with_graceful_shutdown(async {

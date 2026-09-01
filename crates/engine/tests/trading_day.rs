@@ -8,7 +8,7 @@
 //! point of one.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-use broker::{FeeSchedule, FillPolicy, Limits, MockBroker};
+use broker::{FeeSchedule, FillPolicy, MockBroker};
 use domain::{ClientOrderId, Money, ParticipantId, Px, Qty, Side, Symbol, Timestamp};
 use engine::{Command, Engine, EngineError, Journaled};
 
@@ -35,6 +35,15 @@ fn oid(n: u64) -> ClientOrderId {
 /// engines agreeing on this agree on everything a participant can see.
 fn snapshot<B: broker::Broker>(e: &Engine<B>) -> Vec<String> {
     let mut out = vec![format!("seq={}", e.seq())];
+    for spec in e.instruments() {
+        out.push(format!(
+            "instrument {} tick={} lot={} max={:?}",
+            spec.symbol,
+            spec.tick,
+            spec.lot,
+            spec.max_order_qty.map(domain::Qty::get)
+        ));
+    }
     for p in e.participants() {
         out.push(format!(
             "participant {} cash={} realized={} start={}",
@@ -438,7 +447,6 @@ fn partial_fills_from_the_broker_reconcile_to_the_ordered_quantity() {
         11,
         FillPolicy::Partial { max_slices: 4 },
         FeeSchedule { bps: 10 },
-        Limits::default(),
     ));
     let at = Timestamp::from_millis(0);
     e.execute(
@@ -484,4 +492,87 @@ fn partial_fills_from_the_broker_reconcile_to_the_ordered_quantity() {
     assert_eq!(alice.cash(), money("90020.03"));
     assert_eq!(alice.fees_paid(), money("9.97"));
     assert_eq!(e.fee_of(oid(1)), money("9.97"));
+}
+
+#[test]
+fn the_security_master_governs_submissions_venue_style() {
+    use domain::{InstrumentSpec, RejectReason};
+
+    let mut e = Engine::new(MockBroker::simple(0));
+    let at = Timestamp::from_millis(0);
+    e.execute(
+        at,
+        Command::CreateParticipant {
+            participant: who("alice"),
+            starting_cash: money("100000"),
+        },
+    )
+    .unwrap();
+
+    // Penny tick, lot 10, cap 500.
+    e.execute(
+        at,
+        Command::CreateInstrument {
+            spec: InstrumentSpec::new(sym("AAPL"), px("0.01"), qty(10), Some(qty(500))).unwrap(),
+        },
+    )
+    .unwrap();
+
+    let submit = |e: &mut Engine<MockBroker>, id: u64, symbol: &str, q: i64, p: &str| {
+        e.execute(
+            at,
+            Command::SubmitOrder {
+                id: oid(id),
+                participant: who("alice"),
+                symbol: sym(symbol),
+                side: Side::Buy,
+                qty: qty(q),
+                limit_px: px(p),
+            },
+        )
+        .unwrap();
+        e.order(oid(id)).unwrap().state.clone()
+    };
+
+    // Each violation is a RECORDED rejection with its precise reason.
+    let expect_reject = |state: domain::OrderState, want: RejectReason| match state {
+        domain::OrderState::Rejected { reason } => assert_eq!(reason, want),
+        other => panic!("expected REJECTED, got {other:?}"),
+    };
+
+    expect_reject(
+        submit(&mut e, 1, "TSLA", 10, "10"),
+        RejectReason::UnknownSymbol,
+    );
+    expect_reject(
+        submit(&mut e, 2, "AAPL", 10, "10.0050"),
+        RejectReason::PriceOffTick,
+    );
+    expect_reject(submit(&mut e, 3, "AAPL", 15, "10"), RejectReason::QtyOffLot);
+    expect_reject(
+        submit(&mut e, 4, "AAPL", 510, "10"),
+        RejectReason::ExceedsSizeLimit,
+    );
+
+    // A rejected order reserves nothing: the full balance is still free.
+    assert_eq!(submit(&mut e, 5, "AAPL", 500, "10").name(), "ACKNOWLEDGED");
+
+    // Delisting is refused while that order works, allowed once cancelled.
+    assert!(e
+        .execute(
+            at,
+            Command::RemoveInstrument {
+                symbol: sym("AAPL")
+            }
+        )
+        .is_err());
+    e.execute(at, Command::CancelOrder { id: oid(5) }).unwrap();
+    e.execute(
+        at,
+        Command::RemoveInstrument {
+            symbol: sym("AAPL"),
+        },
+    )
+    .unwrap();
+    assert!(e.instruments().next().is_none());
 }

@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import {
   api,
   ApiError,
-  type InstrumentsView,
+  type InstrumentSpecView,
   type LadderView,
   type LeaderboardView,
   type OrderView,
@@ -20,7 +20,7 @@ export const useCockpit = defineStore('cockpit', {
     portfolios: {} as Record<string, PortfolioView>,
     orders: [] as OrderView[],
     days: [] as string[],
-    instruments: null as InstrumentsView | null,
+    instruments: [] as InstrumentSpecView[],
     marks: [] as { symbol: string; px: string }[],
     board: null as LeaderboardView | null,
     selectedDay: '' as string,
@@ -35,7 +35,7 @@ export const useCockpit = defineStore('cockpit', {
         this.connected = true
         this.events = Number(health.events ?? 0)
 
-        const [{ participants }, { orders }, { closedDays }, instruments, { marks }] =
+        const [{ participants }, { orders }, { closedDays }, { instruments }, { marks }] =
           await Promise.all([
             api.participants(),
             api.orders(),

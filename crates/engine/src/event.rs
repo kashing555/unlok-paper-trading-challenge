@@ -17,8 +17,8 @@
 //! positions and P&L: keep the facts, derive the rest.
 
 use domain::{
-    BrokerOrderId, ClientOrderId, Money, NewOrder, ParticipantId, Px, Qty, RejectReason, Symbol,
-    Timestamp, TradingDay,
+    BrokerOrderId, ClientOrderId, InstrumentSpec, Money, NewOrder, ParticipantId, Px, Qty,
+    RejectReason, Symbol, Timestamp, TradingDay,
 };
 use scoring::DayInput;
 
@@ -58,6 +58,14 @@ pub enum Event {
         symbol: Symbol,
         px: Px,
     },
+    /// Create-or-replace is one fact: the registry's row for this symbol is
+    /// now exactly this spec.
+    InstrumentUpserted {
+        spec: InstrumentSpec,
+    },
+    InstrumentRemoved {
+        symbol: Symbol,
+    },
     /// A day's closing facts, per participant.
     ///
     /// The **facts** are stored, not the computed leaderboard: closing value,
@@ -96,6 +104,8 @@ impl Event {
             Self::OrderCancelled { .. } => "order_cancelled",
             Self::OrderReplaced { .. } => "order_replaced",
             Self::MarkUpdated { .. } => "mark_updated",
+            Self::InstrumentUpserted { .. } => "instrument_upserted",
+            Self::InstrumentRemoved { .. } => "instrument_removed",
             Self::DayClosed { .. } => "day_closed",
         }
     }

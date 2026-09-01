@@ -13,6 +13,7 @@
     { "name": "View orders and positions" },
     { "name": "Close a trading day" },
     { "name": "View daily and overall rankings" },
+    { "name": "Instrument reference data" },
     { "name": "Health" }
   ],
   "paths": {
@@ -144,10 +145,48 @@
     },
     "/instruments": {
       "get": {
-        "tags": ["Submit, cancel, and replace orders"],
-        "summary": "The tradable universe (venue reference data)",
-        "description": "What the broker will accept — FIX would call this a SecurityList. `symbols: null` means any well-formed symbol is tradable; otherwise only the listed ones, and anything else comes back REJECTED. Ask first; don't discover by rejection.",
-        "responses": { "200": { "description": "{ symbols: [\"AAPL\", ...] | null, maxOrderQty: n | null }" } }
+        "tags": ["Instrument reference data"],
+        "summary": "The security master — every listed instrument and its grids",
+        "description": "FIX would call this a SecurityList. An **empty list means unrestricted**: any well-formed symbol trades on permissive grids (tick 0.0001, lot 1). Once anything is listed, the venue is an allowlist and off-list or off-grid orders come back as recorded REJECTED orders with a precise reason (UnknownSymbol, PriceOffTick, QtyOffLot, ExceedsSizeLimit). Ask first; don't discover by rejection.",
+        "responses": { "200": { "description": "{ instruments: [InstrumentSpec] }", "content": { "application/json": { "schema": { "type": "object", "properties": { "instruments": { "type": "array", "items": { "$ref": "#/components/schemas/InstrumentSpec" } } } } } } } }
+      },
+      "post": {
+        "tags": ["Instrument reference data"],
+        "summary": "List an instrument",
+        "description": "The first listing switches the venue from unrestricted to allowlist mode. Journalled like everything else — the registry is event-sourced state, and replay rebuilds it.",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreateInstrument" } } } },
+        "responses": {
+          "201": { "description": "Listed", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/InstrumentSpec" } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "409": { "description": "Already listed" }
+        }
+      }
+    },
+    "/instruments/{symbol}": {
+      "get": {
+        "tags": ["Instrument reference data"],
+        "summary": "One instrument's spec",
+        "parameters": [{ "$ref": "#/components/parameters/InstrumentSymbol" }],
+        "responses": { "200": { "description": "The spec" }, "404": { "$ref": "#/components/responses/NotFound" } }
+      },
+      "put": {
+        "tags": ["Instrument reference data"],
+        "summary": "Amend an instrument's grids",
+        "description": "Working orders were judged against the spec at submission and are not retroactively re-checked — the venue changed its rules; it did not unwind your order.",
+        "parameters": [{ "$ref": "#/components/parameters/InstrumentSymbol" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/InstrumentBody" } } } },
+        "responses": { "200": { "description": "The new spec" }, "404": { "$ref": "#/components/responses/NotFound" } }
+      },
+      "delete": {
+        "tags": ["Instrument reference data"],
+        "summary": "Delist",
+        "description": "Refused with the counts while any working order or open position references the symbol — delisting must not strand what it cannot unwind.",
+        "parameters": [{ "$ref": "#/components/parameters/InstrumentSymbol" }],
+        "responses": {
+          "204": { "description": "Delisted" },
+          "409": { "description": "In use — body carries workingOrders and positions counts", "content": { "application/problem+json": { "schema": { "$ref": "#/components/schemas/Problem" } } } },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
       }
     },
     "/market/prices": {
@@ -208,13 +247,41 @@
     "parameters": {
       "ParticipantId": { "name": "id", "in": "path", "required": true, "schema": { "type": "string" }, "example": "alice" },
       "OrderId": { "name": "id", "in": "path", "required": true, "schema": { "type": "integer", "format": "int64" }, "example": 1 },
-      "Day": { "name": "day", "in": "path", "required": true, "schema": { "type": "string", "format": "date" }, "example": "2026-08-30" }
+      "Day": { "name": "day", "in": "path", "required": true, "schema": { "type": "string", "format": "date" }, "example": "2026-08-30" },
+      "InstrumentSymbol": { "name": "symbol", "in": "path", "required": true, "schema": { "type": "string" }, "example": "AAPL" }
     },
     "responses": {
       "BadRequest": { "description": "Rejected input — strict parsing, nothing repaired", "content": { "application/problem+json": { "schema": { "$ref": "#/components/schemas/Problem" } } } },
       "NotFound": { "description": "Unknown participant, order or day", "content": { "application/problem+json": { "schema": { "$ref": "#/components/schemas/Problem" } } } }
     },
     "schemas": {
+      "InstrumentSpec": {
+        "type": "object",
+        "description": "The security master's row: the grids an order must sit on",
+        "properties": {
+          "symbol": { "type": "string", "example": "AAPL" },
+          "tick": { "$ref": "#/components/schemas/Money", "description": "Minimum price increment; finest legal is 0.0001" },
+          "lot": { "type": "integer", "description": "Quantity step; 1 = any whole size", "example": 1 },
+          "maxOrderQty": { "type": "integer", "nullable": true }
+        }
+      },
+      "InstrumentBody": {
+        "type": "object", "required": ["tick"],
+        "properties": {
+          "tick": { "type": "string", "example": "0.01" },
+          "lot": { "type": "integer", "default": 1 },
+          "maxOrderQty": { "type": "integer", "nullable": true }
+        }
+      },
+      "CreateInstrument": {
+        "type": "object", "required": ["symbol", "tick"],
+        "properties": {
+          "symbol": { "type": "string", "example": "AAPL" },
+          "tick": { "type": "string", "example": "0.01" },
+          "lot": { "type": "integer", "default": 1 },
+          "maxOrderQty": { "type": "integer", "nullable": true }
+        }
+      },
       "Money": { "type": "string", "description": "Decimal string, four places, exact — never a JSON number", "example": "100000.0000" },
       "CreateParticipant": {
         "type": "object", "required": ["id", "startingCash"],

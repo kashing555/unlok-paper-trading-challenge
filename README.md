@@ -41,8 +41,8 @@ contract stays readable offline.)
 | `PTC_SEED` | `42` | broker RNG seed — same seed, same fills |
 | `PTC_FEE_BPS` | `0` | commission, basis points of notional |
 | `PTC_MAX_SLICES` | `3` | partial fills an order is split into |
-| `PTC_SYMBOLS` | *(any)* | allowlist, e.g. `AAPL,MSFT` — others are `REJECTED` |
-| `PTC_MAX_QTY` | *(none)* | size cap — larger orders are `REJECTED` |
+| `PTC_SYMBOLS` | *(any)* | **seeds the security master** (as journalled events, once) — off-list orders are `REJECTED` |
+| `PTC_MAX_QTY` | *(none)* | per-order size cap on each seeded instrument |
 
 ```bash
 curl -sX POST localhost:8080/participants -H 'content-type: application/json' \
@@ -198,7 +198,8 @@ explain them.
 | `POST`/`GET` `/participants` · `GET /participants/{id}/portfolio` · `/orders` | create, list, read |
 | `POST /orders` · `DELETE`/`PUT`/`GET /orders/{id}` | submit, cancel, replace, read |
 | `POST /broker/executions` | generate an execution; omit `qty`/`px` to let the broker choose |
-| `POST /market/prices` | update marks |
+| `POST /market/prices` · `GET` | update marks · read them back |
+| `/instruments` + `/instruments/{symbol}` (GET/POST/PUT/DELETE) | the security master: tick, lot, size cap per symbol — off-grid orders come back `REJECTED` |
 | `POST /days/{day}/close` · `GET /days/{day}/leaderboard` · `GET /days` · `GET /ladder` | competition |
 
 An illegal transition returns `409` **naming the current state** — "it is already
@@ -230,8 +231,10 @@ carry over · participants assumed to start together with equal capital · no
 deposits or withdrawals after creation · **lot accounting is the risk view** —
 average cost, the brief's own term; a tax-lot books view (FIFO / specific-ID)
 is a documented non-goal since realized + unrealized is invariant to lot method
-and so no ranked number depends on it (design.md §7) · no auth or rate
-limiting · **ranking
+and so no ranked number depends on it (design.md §7) · **per-instrument tick and
+lot rules exist** (the security master) but the *conditional* regulatory tick —
+penny above \$1, finer below — is not modelled: a tick here is one value per
+symbol, not a function of price · no auth or rate limiting · **ranking
 rules are code**, so a `DayClosed` event stores the day's *facts* and the board
 is recomputed from them — but changing the rules would change historical boards ·
 one process, state rebuilt by replaying the log at startup.

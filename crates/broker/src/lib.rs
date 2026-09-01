@@ -15,9 +15,7 @@
 #![forbid(unsafe_code)]
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 
-use std::collections::BTreeSet;
-
-use domain::{BrokerOrderId, DomainError, Money, Order, OrderEvent, Px, Qty, RejectReason, Symbol};
+use domain::{BrokerOrderId, DomainError, Money, Order, OrderEvent, Px, Qty};
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 use thiserror::Error;
@@ -74,28 +72,6 @@ pub enum FillPolicy {
     Partial { max_slices: u32 },
 }
 
-/// Broker-side limits. Account-side rejections (cash, position) are **not**
-/// here — the broker does not know what a participant holds, and the engine
-/// that does checks them before an order ever reaches this.
-#[derive(Debug, Clone, Default)]
-pub struct Limits {
-    /// Empty means every symbol is tradable.
-    pub known_symbols: BTreeSet<Symbol>,
-    pub max_order_qty: Option<Qty>,
-}
-
-impl Limits {
-    fn reject_reason(&self, order: &Order) -> Option<RejectReason> {
-        if !self.known_symbols.is_empty() && !self.known_symbols.contains(&order.symbol) {
-            return Some(RejectReason::UnknownSymbol);
-        }
-        if self.max_order_qty.is_some_and(|max| order.qty > max) {
-            return Some(RejectReason::ExceedsSizeLimit);
-        }
-        None
-    }
-}
-
 /// The port the engine depends on. Small on purpose: an engine that can name
 /// every method of its broker is an engine coupled to this one.
 pub trait Broker {
@@ -108,11 +84,6 @@ pub trait Broker {
     /// The commission on a notional, for executions driven explicitly rather
     /// than generated here.
     fn fee_on(&self, notional: Money) -> Result<Money, DomainError>;
-
-    /// The venue's reference data: what may be traded at all. FIX calls this a
-    /// SecurityList; a venue that cannot answer it is a venue you discover by
-    /// being rejected, which is not discovery.
-    fn limits(&self) -> &Limits;
 }
 
 pub struct MockBroker {
@@ -120,29 +91,22 @@ pub struct MockBroker {
     next_id: u64,
     policy: FillPolicy,
     fees: FeeSchedule,
-    limits: Limits,
 }
 
 impl MockBroker {
-    pub fn new(seed: u64, policy: FillPolicy, fees: FeeSchedule, limits: Limits) -> Self {
+    pub fn new(seed: u64, policy: FillPolicy, fees: FeeSchedule) -> Self {
         Self {
             rng: ChaCha8Rng::seed_from_u64(seed),
             next_id: 1,
             policy,
             fees,
-            limits,
         }
     }
 
     /// A broker that acks everything and fills completely, with no fees — the
     /// default for tests that are about something else.
     pub fn simple(seed: u64) -> Self {
-        Self::new(
-            seed,
-            FillPolicy::Complete,
-            FeeSchedule::FREE,
-            Limits::default(),
-        )
+        Self::new(seed, FillPolicy::Complete, FeeSchedule::FREE)
     }
 
     fn mint_id(&mut self) -> BrokerOrderId {
@@ -154,11 +118,12 @@ impl MockBroker {
 
 impl Broker for MockBroker {
     fn on_submit(&mut self, order: &Order) -> OrderEvent {
-        match self.limits.reject_reason(order) {
-            Some(reason) => OrderEvent::Rejected { reason },
-            None => OrderEvent::Acknowledged {
-                broker_id: self.mint_id(),
-            },
+        // Reference data moved to the engine's security master; by the time an
+        // order reaches the broker it has already passed the venue's grids, so
+        // the mock's only job here is to acknowledge with a minted id.
+        let _ = order;
+        OrderEvent::Acknowledged {
+            broker_id: self.mint_id(),
         }
     }
 
@@ -204,16 +169,12 @@ impl Broker for MockBroker {
     fn fee_on(&self, notional: Money) -> Result<Money, DomainError> {
         self.fees.of(notional)
     }
-
-    fn limits(&self) -> &Limits {
-        &self.limits
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use domain::{ClientOrderId, NewOrder, ParticipantId, Side, Timestamp};
+    use domain::{ClientOrderId, NewOrder, ParticipantId, Side, Symbol, Timestamp};
 
     fn order(qty: i64, symbol: &str) -> Order {
         Order::submit(NewOrder {
@@ -256,14 +217,8 @@ mod tests {
     #[test]
     fn the_same_seed_produces_the_same_executions() {
         let policy = FillPolicy::Partial { max_slices: 4 };
-        let a = run_to_fill(
-            &mut MockBroker::new(42, policy, FeeSchedule::FREE, Limits::default()),
-            100,
-        );
-        let b = run_to_fill(
-            &mut MockBroker::new(42, policy, FeeSchedule::FREE, Limits::default()),
-            100,
-        );
+        let a = run_to_fill(&mut MockBroker::new(42, policy, FeeSchedule::FREE), 100);
+        let b = run_to_fill(&mut MockBroker::new(42, policy, FeeSchedule::FREE), 100);
         assert_eq!(a, b, "same seed must replay identically");
         assert!(
             a.len() > 1,
@@ -274,14 +229,8 @@ mod tests {
     #[test]
     fn a_different_seed_produces_different_executions() {
         let policy = FillPolicy::Partial { max_slices: 4 };
-        let a = run_to_fill(
-            &mut MockBroker::new(1, policy, FeeSchedule::FREE, Limits::default()),
-            1000,
-        );
-        let b = run_to_fill(
-            &mut MockBroker::new(2, policy, FeeSchedule::FREE, Limits::default()),
-            1000,
-        );
+        let a = run_to_fill(&mut MockBroker::new(1, policy, FeeSchedule::FREE), 1000);
+        let b = run_to_fill(&mut MockBroker::new(2, policy, FeeSchedule::FREE), 1000);
         assert_ne!(a, b);
     }
 
@@ -294,7 +243,6 @@ mod tests {
                     seed,
                     FillPolicy::Partial { max_slices: 5 },
                     FeeSchedule::FREE,
-                    Limits::default(),
                 ),
                 997,
             );
@@ -305,44 +253,6 @@ mod tests {
     #[test]
     fn a_complete_policy_fills_in_one_execution() {
         assert_eq!(run_to_fill(&mut MockBroker::simple(0), 100), vec![100]);
-    }
-
-    #[test]
-    fn an_unknown_symbol_is_rejected() {
-        let mut limits = Limits::default();
-        limits.known_symbols.insert(Symbol::parse("AAPL").unwrap());
-        let mut broker = MockBroker::new(0, FillPolicy::Complete, FeeSchedule::FREE, limits);
-
-        assert_eq!(
-            broker.on_submit(&order(10, "TSLA")),
-            OrderEvent::Rejected {
-                reason: RejectReason::UnknownSymbol
-            }
-        );
-        assert!(matches!(
-            broker.on_submit(&order(10, "AAPL")),
-            OrderEvent::Acknowledged { .. }
-        ));
-    }
-
-    #[test]
-    fn an_oversized_order_is_rejected() {
-        let limits = Limits {
-            max_order_qty: Some(Qty::new(100).unwrap()),
-            ..Limits::default()
-        };
-        let mut broker = MockBroker::new(0, FillPolicy::Complete, FeeSchedule::FREE, limits);
-
-        assert_eq!(
-            broker.on_submit(&order(101, "AAPL")),
-            OrderEvent::Rejected {
-                reason: RejectReason::ExceedsSizeLimit
-            }
-        );
-        assert!(matches!(
-            broker.on_submit(&order(100, "AAPL")),
-            OrderEvent::Acknowledged { .. }
-        ));
     }
 
     #[test]
@@ -383,7 +293,7 @@ mod tests {
 #[cfg(test)]
 mod slicing_tests {
     use super::*;
-    use domain::{ClientOrderId, NewOrder, ParticipantId, Side, Timestamp};
+    use domain::{ClientOrderId, NewOrder, ParticipantId, Side, Symbol, Timestamp};
 
     fn working(id: u64, qty: i64, broker: &mut MockBroker) -> Order {
         let mut o = Order::submit(NewOrder {
@@ -409,12 +319,8 @@ mod slicing_tests {
     /// budget and complete in a single fill.
     #[test]
     fn interleaved_orders_do_not_share_a_slice_budget() {
-        let mut broker = MockBroker::new(
-            7,
-            FillPolicy::Partial { max_slices: 3 },
-            FeeSchedule::FREE,
-            Limits::default(),
-        );
+        let mut broker =
+            MockBroker::new(7, FillPolicy::Partial { max_slices: 3 }, FeeSchedule::FREE);
 
         let mut a = working(1, 1000, &mut broker);
         let mut b = working(2, 1000, &mut broker);
@@ -448,12 +354,8 @@ mod slicing_tests {
     fn an_order_never_takes_more_than_max_slices_executions() {
         for seed in 0..40 {
             for max_slices in 1..=5 {
-                let mut broker = MockBroker::new(
-                    seed,
-                    FillPolicy::Partial { max_slices },
-                    FeeSchedule::FREE,
-                    Limits::default(),
-                );
+                let mut broker =
+                    MockBroker::new(seed, FillPolicy::Partial { max_slices }, FeeSchedule::FREE);
                 let mut o = working(1, 997, &mut broker);
                 let mut fills = 0;
                 while !o.state.is_terminal() {

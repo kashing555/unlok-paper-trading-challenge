@@ -28,6 +28,10 @@ pub enum RejectReason {
     InsufficientCash,
     InsufficientPosition,
     ExceedsSizeLimit,
+    /// The limit price is not on the instrument's tick grid.
+    PriceOffTick,
+    /// The quantity is not a whole number of the instrument's lots.
+    QtyOffLot,
 }
 
 /// The six states from the brief.

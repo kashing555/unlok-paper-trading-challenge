@@ -395,6 +395,10 @@ async fn the_openapi_contract_matches_the_router() {
         "PUT /orders/{id}",
         "POST /broker/executions",
         "GET /instruments",
+        "POST /instruments",
+        "GET /instruments/{symbol}",
+        "PUT /instruments/{symbol}",
+        "DELETE /instruments/{symbol}",
         "GET /market/prices",
         "POST /market/prices",
         "GET /days",
@@ -414,41 +418,105 @@ async fn the_openapi_contract_matches_the_router() {
 }
 
 #[tokio::test]
-async fn reference_data_is_discoverable_not_learned_by_rejection() {
-    use broker::{FeeSchedule, FillPolicy, Limits, MockBroker};
-    use domain::{Qty, Symbol};
-
-    // Unrestricted broker: symbols is null.
+async fn the_security_master_is_crud_and_governs_submissions() {
     let state = app();
+
+    // Empty registry = unrestricted: list is empty, any symbol trades.
     let (status, body) = get(&state, "/instruments").await;
     assert_eq!(status, StatusCode::OK);
-    assert!(body["symbols"].is_null());
-    assert!(body["maxOrderQty"].is_null());
+    assert_eq!(body["instruments"].as_array().unwrap().len(), 0);
 
-    // Restricted broker: the allowlist and cap are readable up front.
-    let mut known = std::collections::BTreeSet::new();
-    known.insert(Symbol::parse("AAPL").unwrap());
-    known.insert(Symbol::parse("MSFT").unwrap());
-    let broker = MockBroker::new(
-        7,
-        FillPolicy::Complete,
-        FeeSchedule::FREE,
-        Limits {
-            known_symbols: known,
-            max_order_qty: Some(Qty::new(500).unwrap()),
-        },
+    // List AAPL at a penny tick with a size cap.
+    let (status, created) = post(
+        &state,
+        "/instruments",
+        json!({"symbol":"AAPL","tick":"0.01","maxOrderQty":500}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert_eq!(created["tick"], "0.0100");
+    assert_eq!(created["lot"], 1);
+    assert_eq!(created["maxOrderQty"], 500);
+
+    // Duplicate listing is a conflict; reading it back works.
+    assert_eq!(
+        post(
+            &state,
+            "/instruments",
+            json!({"symbol":"AAPL","tick":"0.01"})
+        )
+        .await
+        .0,
+        StatusCode::CONFLICT
     );
-    let state = Arc::new(Mutex::new(
-        App::open(SqliteLog::in_memory().unwrap(), broker).unwrap(),
-    ));
-    let (_, body) = get(&state, "/instruments").await;
-    assert_eq!(body["symbols"], serde_json::json!(["AAPL", "MSFT"]));
-    assert_eq!(body["maxOrderQty"], 500);
+    assert_eq!(get(&state, "/instruments/AAPL").await.0, StatusCode::OK);
+    assert_eq!(
+        get(&state, "/instruments/TSLA").await.0,
+        StatusCode::NOT_FOUND
+    );
 
-    // Marks are readable back, in symbol order, exactly as posted.
-    create(&state, "alice", "1000").await;
-    let (_, empty) = get(&state, "/market/prices").await;
-    assert_eq!(empty["marks"].as_array().unwrap().len(), 0);
+    create(&state, "alice", "100000").await;
+
+    // Venue-style rejections, recorded as REJECTED orders — not refused
+    // commands. Off the list:
+    let (status, order) = post(
+        &state,
+        "/orders",
+        json!({"participant":"alice","symbol":"TSLA","side":"buy","qty":10,"limitPx":"10"}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert_eq!(order["state"], "REJECTED");
+
+    // Off the tick grid — $10.0050 on a penny stock, the Reg NMS case:
+    let (_, order) = post(
+        &state,
+        "/orders",
+        json!({"participant":"alice","symbol":"AAPL","side":"buy","qty":10,"limitPx":"10.0050"}),
+    )
+    .await;
+    assert_eq!(order["state"], "REJECTED");
+
+    // Over the cap:
+    let (_, order) = post(
+        &state,
+        "/orders",
+        json!({"participant":"alice","symbol":"AAPL","side":"buy","qty":501,"limitPx":"10"}),
+    )
+    .await;
+    assert_eq!(order["state"], "REJECTED");
+
+    // On-grid passes and fills.
+    let id = submit(&state, "alice", "buy", 100, "10").await;
+    post(&state, "/broker/executions", json!({"orderId": id})).await;
+
+    // Delisting is blocked while a position exists — with the counts.
+    let (status, problem) = call(&state, "DELETE", "/instruments/AAPL", None).await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert_eq!(
+        problem["type"],
+        "https://unlok-ptc.invalid/errors/instrument-in-use"
+    );
+    assert_eq!(problem["positions"], 1);
+
+    // Widen the tick by PUT; the earlier off-tick price is now legal.
+    let (status, _) = call(
+        &state,
+        "PUT",
+        "/instruments/AAPL",
+        Some(json!({"tick":"0.0050"})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let (_, order) = post(
+        &state,
+        "/orders",
+        json!({"participant":"alice","symbol":"AAPL","side":"buy","qty":10,"limitPx":"10.0050"}),
+    )
+    .await;
+    assert_eq!(order["state"], "ACKNOWLEDGED");
+
+    // Marks remain readable back, sorted, exactly as posted.
     post(
         &state,
         "/market/prices",

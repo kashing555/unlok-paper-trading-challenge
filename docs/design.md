@@ -166,10 +166,15 @@ is what makes the test suite meaningful and the demo repeatable.
   one order completes in at most `max_slices` fills. Always at the order's own
   limit price: no improvement is modelled, so a fill is never better than asked
   and never worse. The `Rng` is owned and seeded; `thread_rng` appears nowhere.
-- **Reject policy.** Configurable broker-side triggers (unknown symbol, size
-  cap) exercise the `REJECTED` path. Cash and position sufficiency are **not**
-  broker triggers: the broker cannot see a participant's book, so those are
-  engine pre-trade refusals — the order is never submitted at all.
+- **Reject policy.** Reference data drives it: the engine's **security master**
+  (`/instruments`, event-sourced like everything else) judges every submission —
+  unknown symbol, off-tick price, off-lot quantity, over the size cap — and a
+  violation becomes a *recorded `REJECTED` order with its precise reason*,
+  exactly as an exchange answers it. Cash and position sufficiency are **not**
+  venue triggers: the venue cannot see a participant's book, so those remain
+  engine pre-trade refusals — the order is never submitted at all. An empty
+  master means unrestricted (tick 0.0001, lot 1); the first listing switches
+  the venue to allowlist mode.
 
 Marketable-limit only. No book, no queue position, no price-time priority —
 those are a different exercise and the brief does not ask for them.

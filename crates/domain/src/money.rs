@@ -76,6 +76,9 @@ impl Money {
 }
 
 impl Px {
+    /// One raw unit — $0.0001, the finest tick the system's grid can express.
+    pub const MIN_TICK: Self = Self(1);
+
     /// Construct from raw scaled units, rejecting non-positive prices.
     pub fn from_raw(raw: i64) -> Result<Self, DomainError> {
         if raw > 0 {
@@ -108,6 +111,7 @@ impl Px {
 
 impl Qty {
     pub const ZERO: Self = Self(0);
+    pub const ONE: Self = Self(1);
 
     pub fn new(shares: i64) -> Result<Self, DomainError> {
         if shares >= 0 {

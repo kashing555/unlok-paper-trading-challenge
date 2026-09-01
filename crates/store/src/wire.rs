@@ -11,8 +11,8 @@
 //! where that mistake would be permanent.
 
 use domain::{
-    BrokerOrderId, ClientOrderId, DomainError, Money, NewOrder, ParticipantId, Px, Qty,
-    RejectReason, Side, Symbol, Timestamp, TradingDay,
+    BrokerOrderId, ClientOrderId, DomainError, InstrumentSpec, Money, NewOrder, ParticipantId, Px,
+    Qty, RejectReason, Side, Symbol, Timestamp, TradingDay,
 };
 use engine::{Event, Journaled};
 use scoring::DayInput;
@@ -32,6 +32,8 @@ pub(crate) enum WireReject {
     InsufficientCash,
     InsufficientPosition,
     ExceedsSizeLimit,
+    PriceOffTick,
+    QtyOffLot,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -92,6 +94,15 @@ pub(crate) enum WireEvent {
         symbol: String,
         px: i64,
     },
+    InstrumentUpserted {
+        symbol: String,
+        tick: i64,
+        lot: i64,
+        max_order_qty: Option<i64>,
+    },
+    InstrumentRemoved {
+        symbol: String,
+    },
     DayClosed {
         day: String,
         entries: Vec<WireDayInput>,
@@ -116,6 +127,8 @@ impl From<RejectReason> for WireReject {
             RejectReason::InsufficientCash => Self::InsufficientCash,
             RejectReason::InsufficientPosition => Self::InsufficientPosition,
             RejectReason::ExceedsSizeLimit => Self::ExceedsSizeLimit,
+            RejectReason::PriceOffTick => Self::PriceOffTick,
+            RejectReason::QtyOffLot => Self::QtyOffLot,
         }
     }
 }
@@ -173,6 +186,15 @@ impl From<&Event> for WireEvent {
                 symbol: symbol.to_string(),
                 px: px.raw(),
             },
+            Event::InstrumentUpserted { spec } => Self::InstrumentUpserted {
+                symbol: spec.symbol.to_string(),
+                tick: spec.tick.raw(),
+                lot: spec.lot.get(),
+                max_order_qty: spec.max_order_qty.map(Qty::get),
+            },
+            Event::InstrumentRemoved { symbol } => Self::InstrumentRemoved {
+                symbol: symbol.to_string(),
+            },
             Event::DayClosed { day, entries } => Self::DayClosed {
                 day: day.to_string(),
                 entries: entries.iter().map(Into::into).collect(),
@@ -225,6 +247,8 @@ impl From<WireReject> for RejectReason {
             WireReject::InsufficientCash => Self::InsufficientCash,
             WireReject::InsufficientPosition => Self::InsufficientPosition,
             WireReject::ExceedsSizeLimit => Self::ExceedsSizeLimit,
+            WireReject::PriceOffTick => Self::PriceOffTick,
+            WireReject::QtyOffLot => Self::QtyOffLot,
         }
     }
 }
@@ -287,6 +311,22 @@ impl TryFrom<WireEvent> for Event {
             WireEvent::MarkUpdated { symbol, px } => Self::MarkUpdated {
                 symbol: Symbol::parse(&symbol)?,
                 px: Px::from_raw(px)?,
+            },
+            WireEvent::InstrumentUpserted {
+                symbol,
+                tick,
+                lot,
+                max_order_qty,
+            } => Self::InstrumentUpserted {
+                spec: InstrumentSpec::new(
+                    Symbol::parse(&symbol)?,
+                    Px::from_raw(tick)?,
+                    Qty::new(lot)?,
+                    max_order_qty.map(Qty::new).transpose()?,
+                )?,
+            },
+            WireEvent::InstrumentRemoved { symbol } => Self::InstrumentRemoved {
+                symbol: Symbol::parse(&symbol)?,
             },
             WireEvent::DayClosed { day, entries } => Self::DayClosed {
                 day: TradingDay::parse(&day)?,

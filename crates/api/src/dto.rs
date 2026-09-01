@@ -60,6 +60,26 @@ pub struct MarkUpdate {
     pub px: String,
 }
 
+/// Spec fields shared by create and update. `lot` defaults to 1.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct InstrumentBody {
+    /// Minimum price increment, e.g. "0.01". The finest legal tick is 0.0001.
+    pub tick: String,
+    #[serde(default)]
+    pub lot: Option<i64>,
+    #[serde(default)]
+    pub max_order_qty: Option<i64>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CreateInstrument {
+    pub symbol: String,
+    #[serde(flatten)]
+    pub spec: InstrumentBody,
+}
+
 // ---- responses -----------------------------------------------------------
 
 #[derive(Debug, Serialize)]
