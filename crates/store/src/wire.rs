@@ -11,8 +11,8 @@
 //! where that mistake would be permanent.
 
 use domain::{
-    BrokerOrderId, ClientOrderId, DomainError, InstrumentSpec, Money, NewOrder, ParticipantId, Px,
-    Qty, RejectReason, Side, Symbol, Timestamp, TradingDay,
+    BrokerOrderId, ClientOrderId, DomainError, ExecutionId, InstrumentSpec, Money, NewOrder,
+    ParticipantId, Px, Qty, RejectReason, Side, Symbol, Timestamp, TradingDay,
 };
 use engine::{Event, Journaled};
 use scoring::DayInput;
@@ -79,6 +79,7 @@ pub(crate) enum WireEvent {
     },
     OrderFilled {
         id: u64,
+        exec_id: u64,
         qty: i64,
         px: i64,
         fee: i64,
@@ -168,8 +169,15 @@ impl From<&Event> for WireEvent {
                 id: id.get(),
                 reason: (*reason).into(),
             },
-            Event::OrderFilled { id, qty, px, fee } => Self::OrderFilled {
+            Event::OrderFilled {
+                id,
+                exec_id,
+                qty,
+                px,
+                fee,
+            } => Self::OrderFilled {
                 id: id.get(),
+                exec_id: exec_id.get(),
                 qty: qty.get(),
                 px: px.raw(),
                 fee: fee.raw(),
@@ -292,8 +300,15 @@ impl TryFrom<WireEvent> for Event {
                 id: ClientOrderId::new(id),
                 reason: reason.into(),
             },
-            WireEvent::OrderFilled { id, qty, px, fee } => Self::OrderFilled {
+            WireEvent::OrderFilled {
+                id,
+                exec_id,
+                qty,
+                px,
+                fee,
+            } => Self::OrderFilled {
                 id: ClientOrderId::new(id),
+                exec_id: ExecutionId::new(exec_id),
                 qty: Qty::new(qty)?,
                 px: Px::from_raw(px)?,
                 fee: Money::from_raw(fee),

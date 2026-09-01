@@ -13,5 +13,5 @@ mod engine;
 mod event;
 
 pub use command::Command;
-pub use engine::{Engine, EngineError};
+pub use engine::{Engine, EngineError, ExecutionRow};
 pub use event::{Event, Journaled};

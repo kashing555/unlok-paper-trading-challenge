@@ -242,6 +242,34 @@ pub async fn replace_order(
     ))
 }
 
+/// The trade blotter for one order: every execution with the venue's ExecID
+/// (FIX 17) — the third id of the trio, so each fill is addressable, exactly
+/// as a dispute or a dedup would need it.
+pub async fn order_executions(
+    State(state): State<AppState>,
+    Path(id): Path<u64>,
+) -> Result<Json<Value>, AppError> {
+    let id = ClientOrderId::new(id);
+    let app = state.lock().await;
+    let engine = app.engine();
+    engine.order(id)?; // 404 for an unknown order, not an empty list
+    let executions: Vec<Value> = engine
+        .executions_of(id)
+        .iter()
+        .map(|row| {
+            json!({
+                "execId": row.exec_id.get(),
+                "qty": row.qty.get(),
+                "px": row.px.to_string(),
+                "fee": row.fee.to_string(),
+            })
+        })
+        .collect();
+    Ok(Json(
+        json!({ "orderId": id.get(), "executions": executions }),
+    ))
+}
+
 // ---- broker --------------------------------------------------------------
 
 /// Generate an execution. With `qty` and `px` the caller chooses the terms;

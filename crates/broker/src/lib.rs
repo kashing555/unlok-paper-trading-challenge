@@ -15,7 +15,7 @@
 #![forbid(unsafe_code)]
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 
-use domain::{BrokerOrderId, DomainError, Money, Order, OrderEvent, Px, Qty};
+use domain::{BrokerOrderId, DomainError, ExecutionId, Money, Order, OrderEvent, Px, Qty};
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 use thiserror::Error;
@@ -29,9 +29,11 @@ pub enum BrokerError {
     Domain(#[from] DomainError),
 }
 
-/// One execution report's worth of terms.
+/// One execution report: the venue's id for this fill, and its terms.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Execution {
+    /// FIX `ExecID` (tag 17) — every fill is individually addressable.
+    pub id: ExecutionId,
     pub qty: Qty,
     pub px: Px,
     pub fee: Money,
@@ -84,11 +86,17 @@ pub trait Broker {
     /// The commission on a notional, for executions driven explicitly rather
     /// than generated here.
     fn fee_on(&self, notional: Money) -> Result<Money, DomainError>;
+
+    /// Mint the venue's id for one execution. Explicit (operator-driven)
+    /// executions are still *booked at the venue*, so the venue numbers them —
+    /// the same counter auto mode uses, one sequence per world.
+    fn mint_exec_id(&mut self) -> ExecutionId;
 }
 
 pub struct MockBroker {
     rng: ChaCha8Rng,
     next_id: u64,
+    next_exec_id: u64,
     policy: FillPolicy,
     fees: FeeSchedule,
 }
@@ -98,6 +106,7 @@ impl MockBroker {
         Self {
             rng: ChaCha8Rng::seed_from_u64(seed),
             next_id: 1,
+            next_exec_id: 1,
             policy,
             fees,
         }
@@ -163,11 +172,18 @@ impl Broker for MockBroker {
         // for and never worse.
         let px = order.limit_px;
         let fee = self.fees.of(px.notional(qty)?)?;
-        Ok(Some(Execution { qty, px, fee }))
+        let id = self.mint_exec_id();
+        Ok(Some(Execution { id, qty, px, fee }))
     }
 
     fn fee_on(&self, notional: Money) -> Result<Money, DomainError> {
         self.fees.of(notional)
+    }
+
+    fn mint_exec_id(&mut self) -> ExecutionId {
+        let id = ExecutionId::new(self.next_exec_id);
+        self.next_exec_id += 1;
+        id
     }
 }
 

@@ -407,6 +407,7 @@ async fn the_openapi_contract_matches_the_router() {
         "POST /orders",
         "GET /orders",
         "GET /orders/{id}",
+        "GET /orders/{id}/executions",
         "DELETE /orders/{id}",
         "PUT /orders/{id}",
         "POST /broker/executions",
@@ -582,4 +583,38 @@ async fn reset_restores_the_boot_world_deterministically() {
     assert_eq!(s2, StatusCode::CREATED);
     assert_eq!(order["id"], 1);
     assert_eq!(order["brokerOrderId"], 1);
+}
+
+#[tokio::test]
+async fn every_fill_carries_the_venues_exec_id() {
+    let state = app();
+    create(&state, "alice", "100000").await;
+    let id = submit(&state, "alice", "buy", 100, "10").await;
+
+    // One explicit, one auto: both are booked at the venue, one id sequence.
+    post(
+        &state,
+        "/broker/executions",
+        json!({"orderId": id, "qty": 40, "px": "10"}),
+    )
+    .await;
+    post(&state, "/broker/executions", json!({"orderId": id})).await;
+
+    let (status, blotter) = get(&state, &format!("/orders/{id}/executions")).await;
+    assert_eq!(status, StatusCode::OK);
+    let rows = blotter["executions"].as_array().unwrap();
+    assert_eq!(rows.len(), 2);
+    assert_eq!(rows[0]["execId"], 1);
+    assert_eq!(rows[0]["qty"], 40);
+    assert_eq!(rows[1]["execId"], 2);
+    assert_eq!(
+        rows.iter().map(|r| r["qty"].as_i64().unwrap()).sum::<i64>(),
+        100,
+        "the blotter must reconcile to the order"
+    );
+
+    assert_eq!(
+        get(&state, "/orders/999/executions").await.0,
+        StatusCode::NOT_FOUND
+    );
 }

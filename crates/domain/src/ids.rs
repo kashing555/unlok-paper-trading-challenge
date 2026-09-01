@@ -31,6 +31,30 @@ pub struct Symbol(String);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ClientOrderId(u64);
 
+/// The **venue's** id for one execution — FIX `ExecID`, tag 17. The third leg
+/// of the id trio: `cloid` names our intent, `oid` names the venue's order,
+/// `tid` names each fill. In production it is the dedup key for redelivered
+/// execution reports; here every operator command legitimately mints a fresh
+/// one, because the operator *is* the venue.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ExecutionId(u64);
+
+impl ExecutionId {
+    pub const fn new(n: u64) -> Self {
+        Self(n)
+    }
+
+    pub const fn get(self) -> u64 {
+        self.0
+    }
+}
+
+impl fmt::Display for ExecutionId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 /// The **broker's** order id, recorded once known. Absent until the ack lands.
 ///
 /// FIX `OrderID` (tag 37). Two ids rather than one because there is a real

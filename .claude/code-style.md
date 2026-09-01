@@ -80,6 +80,7 @@ Never invent a synonym for a term the brief already uses. Never abbreviate one.
 | `ClientOrderId` | FIX | `ClOrdID`, tag 11 |
 | `BrokerOrderId` | FIX | `OrderID`, tag 37 |
 | `replaces` | FIX | `OrigClOrdID`, tag 41 |
+| `ExecutionId` | FIX | `ExecID`, tag 17 — one per fill |
 | `Px` | FIX | `Price` 44, `LastPx` 31, `AvgPx` 6 |
 | `Qty` | FIX | `OrderQty` 38, `CumQty` 14, `LeavesQty` 151 |
 | `Side` | FIX | `Side`, tag 54 |

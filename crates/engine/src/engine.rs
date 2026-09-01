@@ -16,9 +16,9 @@ use std::collections::BTreeMap;
 
 use broker::{Broker, BrokerError};
 use domain::{
-    lifecycle, ClientOrderId, DomainError, Fill, InstrumentSpec, Marks, Money, NewOrder, Order,
-    OrderEvent, ParticipantId, Portfolio, PortfolioError, Px, Qty, RejectReason, Side, Symbol,
-    Timestamp, TradingDay, TransitionError,
+    lifecycle, ClientOrderId, DomainError, ExecutionId, Fill, InstrumentSpec, Marks, Money,
+    NewOrder, Order, OrderEvent, ParticipantId, Portfolio, PortfolioError, Px, Qty, RejectReason,
+    Side, Symbol, Timestamp, TradingDay, TransitionError,
 };
 use scoring::{ladder, leaderboard, DayInput, LadderRow, Leaderboard, ScoringError};
 use thiserror::Error;
@@ -86,6 +86,15 @@ pub enum EngineError {
     Domain(#[from] DomainError),
 }
 
+/// One execution as the trade blotter shows it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ExecutionRow {
+    pub exec_id: ExecutionId,
+    pub qty: Qty,
+    pub px: Px,
+    pub fee: Money,
+}
+
 pub struct Engine<B: Broker> {
     broker: B,
     participants: BTreeMap<ParticipantId, Portfolio>,
@@ -96,6 +105,10 @@ pub struct Engine<B: Broker> {
     /// well-formed symbol); non-empty = allowlist, venue-style REJECTED for
     /// anything off it or off its grids.
     instruments: BTreeMap<Symbol, InstrumentSpec>,
+    /// The trade blotter, per order: every execution with its venue id, in
+    /// the order they happened. A projection over `OrderFilled`, so replay
+    /// rebuilds it and history is addressable fill by fill.
+    order_executions: BTreeMap<ClientOrderId, Vec<ExecutionRow>>,
     /// Fees accrued per order — an engine projection over `OrderFilled`, like
     /// `day_turnover`. Deliberately NOT in `OrderState`: the lifecycle stays
     /// about what executed (gross), the accountant stays the engine (A1's
@@ -122,6 +135,7 @@ impl<B: Broker> Engine<B> {
             marks: Marks::new(),
             seq: 0,
             order_fees: BTreeMap::new(),
+            order_executions: BTreeMap::new(),
             instruments: BTreeMap::new(),
             day_turnover: BTreeMap::new(),
             day_fills: BTreeMap::new(),
@@ -205,6 +219,11 @@ impl<B: Broker> Engine<B> {
             return Some(RejectReason::ExceedsSizeLimit);
         }
         None
+    }
+
+    /// One row of the trade blotter.
+    pub fn executions_of(&self, id: ClientOrderId) -> &[ExecutionRow] {
+        self.order_executions.get(&id).map_or(&[], Vec::as_slice)
     }
 
     /// Fees accrued on one order across all its fills. Zero for an order that
@@ -483,7 +502,10 @@ impl<B: Broker> Engine<B> {
 
             Command::Execute { id, qty, px } => {
                 let fee = self.broker.fee_on(px.notional(qty)?)?;
-                self.validated_fill(id, qty, px, fee)
+                // Booked at the venue even when the operator dictates terms,
+                // so the venue numbers it — one ExecID sequence per world.
+                let exec_id = self.broker.mint_exec_id();
+                self.validated_fill(id, exec_id, qty, px, fee)
             }
 
             Command::AutoExecute { id } => {
@@ -492,7 +514,7 @@ impl<B: Broker> Engine<B> {
                     .broker
                     .next_execution(&order)?
                     .ok_or(EngineError::NothingToExecute(id))?;
-                self.validated_fill(id, execution.qty, execution.px, execution.fee)
+                self.validated_fill(id, execution.id, execution.qty, execution.px, execution.fee)
             }
 
             Command::UpdateMark { symbol, px } => Ok(vec![Event::MarkUpdated { symbol, px }]),
@@ -611,6 +633,7 @@ impl<B: Broker> Engine<B> {
     fn validated_fill(
         &self,
         id: ClientOrderId,
+        exec_id: ExecutionId,
         qty: Qty,
         px: Px,
         fee: Money,
@@ -627,7 +650,13 @@ impl<B: Broker> Engine<B> {
             fee,
         })?;
 
-        Ok(vec![Event::OrderFilled { id, qty, px, fee }])
+        Ok(vec![Event::OrderFilled {
+            id,
+            exec_id,
+            qty,
+            px,
+            fee,
+        }])
     }
 
     // ---- apply -----------------------------------------------------------
@@ -681,7 +710,13 @@ impl<B: Broker> Engine<B> {
                 self.orders.insert(replacement.id, replacement);
             }
 
-            Event::OrderFilled { id, qty, px, fee } => {
+            Event::OrderFilled {
+                id,
+                exec_id,
+                qty,
+                px,
+                fee,
+            } => {
                 let order = self.order_mut(*id)?;
                 order.apply(&OrderEvent::Fill { qty: *qty, px: *px })?;
                 let fill = Fill {
@@ -709,6 +744,16 @@ impl<B: Broker> Engine<B> {
 
                 let accrued = self.order_fees.entry(*id).or_insert(Money::ZERO);
                 *accrued = accrued.checked_add(*fee)?;
+
+                self.order_executions
+                    .entry(*id)
+                    .or_default()
+                    .push(ExecutionRow {
+                        exec_id: *exec_id,
+                        qty: *qty,
+                        px: *px,
+                        fee: *fee,
+                    });
             }
 
             Event::MarkUpdated { symbol, px } => {

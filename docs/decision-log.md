@@ -1176,3 +1176,28 @@ fired again — `/reset` undocumented failed the build until the contract
 carried it — and the cockpit gained a guarded reset button in the top bar.
 Beyond the brief, labelled as such in the contract: this is the paper system's
 demo-account reset, a feature real brokers ship.
+
+## 2026-08-30 — the third id: every fill gets its tid
+
+**Raised in review, correctly:** the trio we cite from FIX and from sigma —
+cloid / oid / tid — was two-thirds implemented. `cloid` mints at submit and
+`oid` at the ack, but executions carried no identity at all: the trade
+blotter's rows were anonymous facts. In a real system the `ExecID` (FIX 17) is
+what fills are deduped and disputed by; a fill you cannot name is a fill you
+cannot reconcile.
+
+**Now:** `ExecutionId` in the domain; the broker mints one per execution from a
+single per-world counter — including **explicit, operator-dictated executions**,
+because they are still *booked at the venue* and the venue numbers its own
+tape. `OrderFilled` events carry it, the wire persists it, and a per-order
+trade blotter is queryable at `GET /orders/{id}/executions` — the engine's
+`order_executions` projection, rebuilt by replay like everything else. The demo
+narrates it (`fill #1 tid 1 → …`).
+
+The confirmation timeline, now complete and stated: **cloid at submit · oid at
+ack · tid per fill.** And the honest production note rides in the contract: the
+tid is the dedup key for redelivered reports; here every command mints fresh,
+because the operator *is* the venue.
+
+105 tests; the drift guard forced the new route into the contract before the
+build passed, as usual.

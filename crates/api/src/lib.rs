@@ -178,6 +178,7 @@ pub fn router(state: AppState) -> Router {
             post(routes::submit_order).get(routes::list_orders),
         )
         .route("/orders/{id}", get(routes::get_order))
+        .route("/orders/{id}/executions", get(routes::order_executions))
         .route("/orders/{id}", delete(routes::cancel_order))
         .route("/orders/{id}", put(routes::replace_order))
         .route("/broker/executions", post(routes::execute_order))

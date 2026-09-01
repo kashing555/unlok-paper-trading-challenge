@@ -22,7 +22,7 @@ mod position;
 mod time;
 
 pub use error::DomainError;
-pub use ids::{BrokerOrderId, ClientOrderId, ParticipantId, Symbol};
+pub use ids::{BrokerOrderId, ClientOrderId, ExecutionId, ParticipantId, Symbol};
 pub use instrument::InstrumentSpec;
 pub use lifecycle::{OrderEvent, OrderState, RejectReason, TransitionError};
 pub use money::{Money, Px, Qty, SCALE, SCALE_DIGITS};

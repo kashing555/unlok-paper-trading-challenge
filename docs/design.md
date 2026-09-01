@@ -124,7 +124,14 @@ at our end and the broker has not given us an id yet.
 order is an error, not a warning — it is a P&L bug that would otherwise surface
 days later during reconciliation.
 
-**Two ids.** `client_order_id` is minted the instant we decide to submit,
+**Three ids, confirmed at three moments.** `cloid` at submit (ours), `oid` at
+the acknowledgement (the venue's order id), and a `tid` on **each execution**
+(the venue's `ExecID`, tag 17) — so every fill is individually addressable, as
+a dispute or a redelivery-dedup requires. In production the tid is the dedup
+key for execution reports; here each operator command legitimately mints a
+fresh one, because the operator is the venue.
+
+**Two order ids.** `client_order_id` is minted the instant we decide to submit,
 *before* the broker acks. `broker_order_id` is recorded when known. That map is
 what makes two things possible that a broker-id-keyed design cannot do:
 

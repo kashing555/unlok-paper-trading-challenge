@@ -17,8 +17,8 @@
 //! positions and P&L: keep the facts, derive the rest.
 
 use domain::{
-    BrokerOrderId, ClientOrderId, InstrumentSpec, Money, NewOrder, ParticipantId, Px, Qty,
-    RejectReason, Symbol, Timestamp, TradingDay,
+    BrokerOrderId, ClientOrderId, ExecutionId, InstrumentSpec, Money, NewOrder, ParticipantId, Px,
+    Qty, RejectReason, Symbol, Timestamp, TradingDay,
 };
 use scoring::DayInput;
 
@@ -41,6 +41,9 @@ pub enum Event {
     },
     OrderFilled {
         id: ClientOrderId,
+        /// The venue's id for this fill — FIX `ExecID` (17). Completes the
+        /// trio: `id` is our cloid, the ack carried the oid, this is the tid.
+        exec_id: ExecutionId,
         qty: Qty,
         px: Px,
         fee: Money,

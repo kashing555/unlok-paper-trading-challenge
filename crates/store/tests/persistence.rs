@@ -60,6 +60,7 @@ fn every_event() -> Vec<Event> {
         },
         Event::OrderFilled {
             id: oid(1),
+            exec_id: domain::ExecutionId::new(9),
             qty: qty(40),
             px: px("10.0050"),
             fee: money("0.4002"),
