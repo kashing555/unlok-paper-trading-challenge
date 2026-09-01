@@ -121,7 +121,10 @@ Everywhere else, less code. This is the one place more prose is correct.
 `client_order_id` is minted the instant we decide to submit, before any ack.
 `broker_order_id` is recorded when known. The map between them is what makes
 cancel-before-ack possible and makes a fill correlatable when the ack races the
-execution report. Both ids appear on every event.
+execution report. Both ids appear on every event. On the wire nothing is ever called plain
+`orderId`: in FIX, *OrderID* is tag 37 — the **broker's** id — so a JSON field
+named `orderId` carrying the client id reads backwards to anyone fluent. The
+wire speaks the trio in full: `clientOrderId` · `brokerOrderId` · `execId`.
 
 ## Before saying done
 

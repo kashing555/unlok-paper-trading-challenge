@@ -6,7 +6,8 @@
 // formatted for display, never arithmetic'd.
 
 export interface OrderView {
-  id: number
+  /** Ours — FIX ClOrdID (11). brokerOrderId is the venue's (37); fills carry execId (17). */
+  clientOrderId: number
   participant: string
   symbol: string
   side: 'buy' | 'sell'
@@ -150,9 +151,9 @@ export const api = {
   cancelOrder: (id: number) => request<OrderView>('DELETE', `/orders/${id}`),
   replaceOrder: (id: number, qty: number, limitPx: string) =>
     request('PUT', `/orders/${id}`, { qty, limitPx }),
-  execute: (orderId: number, qty?: number, px?: string) =>
+  execute: (clientOrderId: number, qty?: number, px?: string) =>
     request<OrderView>('POST', '/broker/executions', {
-      orderId,
+      clientOrderId,
       ...(qty !== undefined && px !== undefined ? { qty, px } : {}),
     }),
   updateMarks: (marks: { symbol: string; px: string }[]) =>

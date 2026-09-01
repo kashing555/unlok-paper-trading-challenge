@@ -266,7 +266,7 @@ pub async fn order_executions(
         })
         .collect();
     Ok(Json(
-        json!({ "orderId": id.get(), "executions": executions }),
+        json!({ "clientOrderId": id.get(), "executions": executions }),
     ))
 }
 
@@ -279,7 +279,7 @@ pub async fn execute_order(
     State(state): State<AppState>,
     Json(req): Json<dto::Execute>,
 ) -> Result<Json<dto::OrderView>, AppError> {
-    let id = ClientOrderId::new(req.order_id);
+    let id = ClientOrderId::new(req.client_order_id);
     let command = match (req.qty, req.px.as_deref()) {
         (Some(qty), Some(px)) => Command::Execute {
             id,

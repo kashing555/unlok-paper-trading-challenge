@@ -79,7 +79,7 @@ async fn submit(state: &AppState, who: &str, side: &str, qty: i64, px: &str) -> 
     )
     .await;
     assert_eq!(s, StatusCode::CREATED, "{body}");
-    body["id"].as_u64().unwrap()
+    body["clientOrderId"].as_u64().unwrap()
 }
 
 async fn mark(state: &AppState, px: &str) {
@@ -100,7 +100,7 @@ async fn a_competition_runs_end_to_end_over_http() {
 
     // alice buys 100 @ 10 and it is filled by the broker's policy.
     let id = submit(&state, "alice", "buy", 100, "10").await;
-    let (s, order) = post(&state, "/broker/executions", json!({"orderId": id})).await;
+    let (s, order) = post(&state, "/broker/executions", json!({"clientOrderId": id})).await;
     assert_eq!(s, StatusCode::OK);
     assert_eq!(order["state"], "FILLED");
     assert_eq!(order["filledQty"], 100);
@@ -156,7 +156,7 @@ async fn cancel_and_replace_are_reachable_and_preserve_fills() {
     let (s, _) = post(
         &state,
         "/broker/executions",
-        json!({"orderId": id, "qty": 40, "px": "10"}),
+        json!({"clientOrderId": id, "qty": 40, "px": "10"}),
     )
     .await;
     assert_eq!(s, StatusCode::OK);
@@ -175,7 +175,7 @@ async fn cancel_and_replace_are_reachable_and_preserve_fills() {
     assert_eq!(body["replacement"]["replaces"], id);
     assert_eq!(body["replacement"]["state"], "ACKNOWLEDGED");
 
-    let new_id = body["replacement"]["id"].as_u64().unwrap();
+    let new_id = body["replacement"]["clientOrderId"].as_u64().unwrap();
     let (s, cancelled) = call(&state, "DELETE", &format!("/orders/{new_id}"), None).await;
     assert_eq!(s, StatusCode::OK);
     assert_eq!(cancelled["state"], "CANCELLED");
@@ -186,7 +186,7 @@ async fn an_illegal_transition_returns_409_naming_the_current_state() {
     let state = app();
     create(&state, "alice", "100000").await;
     let id = submit(&state, "alice", "buy", 10, "10").await;
-    post(&state, "/broker/executions", json!({"orderId": id})).await;
+    post(&state, "/broker/executions", json!({"clientOrderId": id})).await;
 
     let (status, problem) = call(&state, "DELETE", &format!("/orders/{id}"), None).await;
     assert_eq!(status, StatusCode::CONFLICT);
@@ -289,7 +289,7 @@ async fn malformed_input_is_rejected_rather_than_repaired() {
     let (s, _) = post(
         &state,
         "/broker/executions",
-        json!({"orderId": id, "qty": 5}),
+        json!({"clientOrderId": id, "qty": 5}),
     )
     .await;
     assert_eq!(s, StatusCode::BAD_REQUEST);
@@ -300,7 +300,7 @@ async fn a_day_cannot_close_while_a_held_symbol_has_no_mark() {
     let state = app();
     create(&state, "alice", "100000").await;
     let id = submit(&state, "alice", "buy", 10, "10").await;
-    post(&state, "/broker/executions", json!({"orderId": id})).await;
+    post(&state, "/broker/executions", json!({"clientOrderId": id})).await;
 
     let (status, problem) = post(&state, "/days/2026-08-28/close", Value::Null).await;
     assert_eq!(status, StatusCode::CONFLICT);
@@ -323,7 +323,7 @@ async fn closing_a_day_twice_returns_the_same_published_board() {
     let state = app();
     create(&state, "alice", "100000").await;
     let id = submit(&state, "alice", "buy", 100, "10").await;
-    post(&state, "/broker/executions", json!({"orderId": id})).await;
+    post(&state, "/broker/executions", json!({"clientOrderId": id})).await;
     mark(&state, "12").await;
 
     let (_, first) = post(&state, "/days/2026-08-28/close", Value::Null).await;
@@ -349,7 +349,7 @@ async fn state_survives_a_restart_because_the_log_does() {
     ));
     create(&first, "alice", "100000").await;
     let id = submit(&first, "alice", "buy", 100, "10").await;
-    post(&first, "/broker/executions", json!({"orderId": id})).await;
+    post(&first, "/broker/executions", json!({"clientOrderId": id})).await;
     mark(&first, "12").await;
     let (_, before) = get(&first, "/participants/alice/portfolio").await;
     drop(first);
@@ -402,14 +402,14 @@ async fn the_openapi_contract_matches_the_router() {
         "POST /reset",
         "POST /participants",
         "GET /participants",
-        "GET /participants/{id}/portfolio",
-        "GET /participants/{id}/orders",
+        "GET /participants/{participantId}/portfolio",
+        "GET /participants/{participantId}/orders",
         "POST /orders",
         "GET /orders",
-        "GET /orders/{id}",
-        "GET /orders/{id}/executions",
-        "DELETE /orders/{id}",
-        "PUT /orders/{id}",
+        "GET /orders/{clientOrderId}",
+        "GET /orders/{clientOrderId}/executions",
+        "DELETE /orders/{clientOrderId}",
+        "PUT /orders/{clientOrderId}",
         "POST /broker/executions",
         "GET /instruments",
         "POST /instruments",
@@ -505,7 +505,7 @@ async fn the_security_master_is_crud_and_governs_submissions() {
 
     // On-grid passes and fills.
     let id = submit(&state, "alice", "buy", 100, "10").await;
-    post(&state, "/broker/executions", json!({"orderId": id})).await;
+    post(&state, "/broker/executions", json!({"clientOrderId": id})).await;
 
     // Delisting is blocked while a position exists — with the counts.
     let (status, problem) = call(&state, "DELETE", "/instruments/AAPL", None).await;
@@ -552,7 +552,7 @@ async fn reset_restores_the_boot_world_deterministically() {
     let state = app();
     create(&state, "alice", "100000").await;
     let id = submit(&state, "alice", "buy", 100, "10").await;
-    post(&state, "/broker/executions", json!({"orderId": id})).await;
+    post(&state, "/broker/executions", json!({"clientOrderId": id})).await;
     mark(&state, "12").await;
     post(&state, "/days/2026-08-28/close", Value::Null).await;
 
@@ -581,7 +581,7 @@ async fn reset_restores_the_boot_world_deterministically() {
     )
     .await;
     assert_eq!(s2, StatusCode::CREATED);
-    assert_eq!(order["id"], 1);
+    assert_eq!(order["clientOrderId"], 1);
     assert_eq!(order["brokerOrderId"], 1);
 }
 
@@ -595,10 +595,10 @@ async fn every_fill_carries_the_venues_exec_id() {
     post(
         &state,
         "/broker/executions",
-        json!({"orderId": id, "qty": 40, "px": "10"}),
+        json!({"clientOrderId": id, "qty": 40, "px": "10"}),
     )
     .await;
-    post(&state, "/broker/executions", json!({"orderId": id})).await;
+    post(&state, "/broker/executions", json!({"clientOrderId": id})).await;
 
     let (status, blotter) = get(&state, &format!("/orders/{id}/executions")).await;
     assert_eq!(status, StatusCode::OK);

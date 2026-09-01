@@ -50,7 +50,7 @@ curl -sX POST localhost:8080/participants -H 'content-type: application/json' \
 curl -sX POST localhost:8080/orders -H 'content-type: application/json' \
   -d '{"participant":"alice","symbol":"AAPL","side":"buy","qty":100,"limitPx":"10"}'
 curl -sX POST localhost:8080/broker/executions -H 'content-type: application/json' \
-  -d '{"orderId":1}'                                    # broker picks the terms
+  -d '{"clientOrderId":1}'                                    # broker picks the terms
 curl -sX POST localhost:8080/market/prices -H 'content-type: application/json' \
   -d '[{"symbol":"AAPL","px":"12"}]'
 curl -s  localhost:8080/participants/alice/portfolio

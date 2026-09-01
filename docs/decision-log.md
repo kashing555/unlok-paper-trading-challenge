@@ -1201,3 +1201,21 @@ because the operator *is* the venue.
 
 105 tests; the drift guard forced the new route into the contract before the
 build passed, as usual.
+
+## 2026-08-30 — nothing on the wire is called "orderId"
+
+**Raised in review, and FIX-backwards until fixed:** the API said `orderId` in
+three places (the Execute body, the OrderView's own id, the blotter response),
+and in every one it meant the **client** order id — while in FIX, *OrderID* is
+tag 37, the **broker's** id. A reviewer fluent in the protocol would read our
+field exactly wrong, and id ambiguity is how fills get booked against the wrong
+order in real life.
+
+The wire now speaks the trio in full and nothing else: `clientOrderId`
+(ClOrdID 11), `brokerOrderId` (OrderID 37), `execId` (ExecID 17) — in every
+request body, every response, and even the path-parameter names
+(`/orders/{clientOrderId}`), with the OrderView schema carrying the rule as its
+own description. The internal domain never had the problem (`ClientOrderId` /
+`BrokerOrderId` / `ExecutionId` were always explicit); the edge was the only
+place the shorthand had crept in — which is the serde-boundary argument paying
+out once more: one wire layer to fix, zero domain commits.

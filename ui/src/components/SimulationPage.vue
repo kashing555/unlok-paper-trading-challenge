@@ -64,22 +64,22 @@ async function runDemo() {
 
     say(`— day ${dayA} —`)
     const a1 = await api.submitOrder({ participant: 'alice', symbol: 'AAPL', side: 'buy', qty: 100, limitPx: '10' })
-    say(`submit  #${a1.id} alice buy 100 AAPL @ 10`)
-    await api.execute(a1.id, 40, '10')
-    say(`fill    #${a1.id} → PARTIALLY_FILLED 40/100 (explicit)`)
-    await api.cancelOrder(a1.id)
-    say(`cancel  #${a1.id} → keeps the 40 that executed`)
+    say(`submit  #${a1.clientOrderId} alice buy 100 AAPL @ 10`)
+    await api.execute(a1.clientOrderId, 40, '10')
+    say(`fill    #${a1.clientOrderId} → PARTIALLY_FILLED 40/100 (explicit)`)
+    await api.cancelOrder(a1.clientOrderId)
+    say(`cancel  #${a1.clientOrderId} → keeps the 40 that executed`)
     await beat()
 
     const a2 = await api.submitOrder({ participant: 'alice', symbol: 'MSFT', side: 'buy', qty: 50, limitPx: '20' })
-    say(`submit  #${a2.id} alice buy 50 MSFT @ 20`)
-    await autoFill(a2.id)
+    say(`submit  #${a2.clientOrderId} alice buy 50 MSFT @ 20`)
+    await autoFill(a2.clientOrderId)
 
     const b1 = await api.submitOrder({ participant: 'bob', symbol: 'AAPL', side: 'buy', qty: 200, limitPx: '12' })
-    say(`submit  #${b1.id} bob buy 200 AAPL @ 12`)
-    const rep = (await api.replaceOrder(b1.id, 100, '11')) as { replacement: OrderView }
-    say(`replace #${b1.id} → #${rep.replacement.id} for 100 @ 11`)
-    await autoFill(rep.replacement.id)
+    say(`submit  #${b1.clientOrderId} bob buy 200 AAPL @ 12`)
+    const rep = (await api.replaceOrder(b1.clientOrderId, 100, '11')) as { replacement: OrderView }
+    say(`replace #${b1.clientOrderId} → #${rep.replacement.clientOrderId} for 100 @ 11`)
+    await autoFill(rep.replacement.clientOrderId)
 
     await api.updateMarks([{ symbol: 'AAPL', px: '11' }, { symbol: 'MSFT', px: '21' }])
     say('marks   AAPL 11 · MSFT 21')
@@ -90,8 +90,8 @@ async function runDemo() {
 
     say(`— day ${dayB} —`)
     const a3 = await api.submitOrder({ participant: 'alice', symbol: 'AAPL', side: 'sell', qty: 20, limitPx: '11' })
-    say(`submit  #${a3.id} alice sell 20 AAPL @ 11 — realizing profit`)
-    await autoFill(a3.id)
+    say(`submit  #${a3.clientOrderId} alice sell 20 AAPL @ 11 — realizing profit`)
+    await autoFill(a3.clientOrderId)
 
     await api.updateMarks([{ symbol: 'AAPL', px: '10.5' }, { symbol: 'MSFT', px: '22.25' }])
     say('marks   AAPL 10.5 · MSFT 22.25')

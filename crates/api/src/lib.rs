@@ -171,16 +171,25 @@ pub fn router(state: AppState) -> Router {
             "/participants",
             post(routes::create_participant).get(routes::list_participants),
         )
-        .route("/participants/{id}/portfolio", get(routes::portfolio))
-        .route("/participants/{id}/orders", get(routes::participant_orders))
+        .route(
+            "/participants/{participantId}/portfolio",
+            get(routes::portfolio),
+        )
+        .route(
+            "/participants/{participantId}/orders",
+            get(routes::participant_orders),
+        )
         .route(
             "/orders",
             post(routes::submit_order).get(routes::list_orders),
         )
-        .route("/orders/{id}", get(routes::get_order))
-        .route("/orders/{id}/executions", get(routes::order_executions))
-        .route("/orders/{id}", delete(routes::cancel_order))
-        .route("/orders/{id}", put(routes::replace_order))
+        .route("/orders/{clientOrderId}", get(routes::get_order))
+        .route(
+            "/orders/{clientOrderId}/executions",
+            get(routes::order_executions),
+        )
+        .route("/orders/{clientOrderId}", delete(routes::cancel_order))
+        .route("/orders/{clientOrderId}", put(routes::replace_order))
         .route("/broker/executions", post(routes::execute_order))
         .route(
             "/instruments",

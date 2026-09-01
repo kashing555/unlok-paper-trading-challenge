@@ -54,8 +54,8 @@ function stateClass(state: string) {
         </tr>
       </thead>
       <tbody>
-        <tr v-for="o in [...s.orders].reverse()" :key="o.id">
-          <td class="num">{{ o.id }}</td>
+        <tr v-for="o in [...s.orders].reverse()" :key="o.clientOrderId">
+          <td class="num">{{ o.clientOrderId }}</td>
           <td>{{ o.participant }}</td>
           <td>{{ o.symbol }}</td>
           <td :class="o.side === 'buy' ? 'up' : 'down'">{{ o.side }}</td>
@@ -71,16 +71,16 @@ function stateClass(state: string) {
           <td class="num">{{ o.filledCost }}</td>
           <td class="num dim">{{ o.fees }}</td>
           <td style="white-space:nowrap">
-            <template v-if="edit.id === o.id">
+            <template v-if="edit.id === o.clientOrderId">
               <input v-model.number="edit.qty" type="number" min="1" class="num" style="width:70px" title="new quantity" />
               <input v-model="edit.px" class="num" style="width:80px" title="new limit price" />
               <button class="primary" @click="confirmReplace">ok</button>
               <button @click="edit.id = null">×</button>
             </template>
             <template v-else-if="isWorking(o.state)">
-              <button @click="s.attempt(() => api.execute(o.id))" title="Let the seeded broker choose the terms">fill</button>
-              <button @click="openReplace(o.id, o.remainingQty, o.limitPx)" title="Cancel-replace: keeps what already filled, mints a new order">replace</button>
-              <button @click="s.attempt(() => api.cancelOrder(o.id))">cancel</button>
+              <button @click="s.attempt(() => api.execute(o.clientOrderId))" title="Let the seeded broker choose the terms">fill</button>
+              <button @click="openReplace(o.clientOrderId, o.remainingQty, o.limitPx)" title="Cancel-replace: keeps what already filled, mints a new order">replace</button>
+              <button @click="s.attempt(() => api.cancelOrder(o.clientOrderId))">cancel</button>
             </template>
           </td>
         </tr>

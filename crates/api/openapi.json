@@ -52,7 +52,7 @@
         "responses": { "200": { "description": "All participant ids" } }
       }
     },
-    "/participants/{id}/portfolio": {
+    "/participants/{participantId}/portfolio": {
       "get": {
         "tags": ["View orders and positions"],
         "summary": "Cash, positions, average price, realized/unrealized P&L, fees, total value, active orders",
@@ -64,7 +64,7 @@
         }
       }
     },
-    "/participants/{id}/orders": {
+    "/participants/{participantId}/orders": {
       "get": {
         "tags": ["View orders and positions"],
         "summary": "Full order history for one participant",
@@ -99,7 +99,7 @@
         "responses": { "200": { "description": "All orders" } }
       }
     },
-    "/orders/{id}": {
+    "/orders/{clientOrderId}": {
       "get": {
         "tags": ["View orders and positions"],
         "summary": "One order",
@@ -135,13 +135,13 @@
         }
       }
     },
-    "/orders/{id}/executions": {
+    "/orders/{clientOrderId}/executions": {
       "get": {
         "tags": ["View orders and positions"],
         "summary": "The trade blotter for one order",
         "description": "Every execution booked against the order, each with the venue's ExecID (FIX tag 17) — cloid names the intent, the ack carried the oid, and each fill carries its tid. In production the ExecID is the dedup key for redelivered reports; here every operator command mints a fresh one because the operator is the venue.",
         "parameters": [{ "$ref": "#/components/parameters/OrderId" }],
-        "responses": { "200": { "description": "{ orderId, executions: [{execId, qty, px, fee}] }" }, "404": { "$ref": "#/components/responses/NotFound" } }
+        "responses": { "200": { "description": "{ clientOrderId, executions: [{execId, qty, px, fee}] }" }, "404": { "$ref": "#/components/responses/NotFound" } }
       }
     },
     "/broker/executions": {
@@ -262,8 +262,8 @@
   },
   "components": {
     "parameters": {
-      "ParticipantId": { "name": "id", "in": "path", "required": true, "schema": { "type": "string" }, "example": "alice" },
-      "OrderId": { "name": "id", "in": "path", "required": true, "schema": { "type": "integer", "format": "int64" }, "example": 1 },
+      "ParticipantId": { "name": "participantId", "in": "path", "required": true, "schema": { "type": "string" }, "example": "alice" },
+      "OrderId": { "name": "clientOrderId", "description": "The client order id — FIX ClOrdID (11), minted by the server at submit. Not the broker's OrderID (37), which appears as brokerOrderId in responses.", "in": "path", "required": true, "schema": { "type": "integer", "format": "int64" }, "example": 1 },
       "Day": { "name": "day", "in": "path", "required": true, "schema": { "type": "string", "format": "date" }, "example": "2026-08-30" },
       "InstrumentSymbol": { "name": "symbol", "in": "path", "required": true, "schema": { "type": "string" }, "example": "AAPL" }
     },
@@ -319,9 +319,9 @@
         "properties": { "qty": { "type": "integer", "example": 50 }, "limitPx": { "$ref": "#/components/schemas/Money" } }
       },
       "Execute": {
-        "type": "object", "required": ["orderId"],
+        "type": "object", "required": ["clientOrderId"],
         "properties": {
-          "orderId": { "type": "integer", "example": 1 },
+          "clientOrderId": { "type": "integer", "example": 1, "description": "The id from your submit response — FIX ClOrdID (11)" },
           "qty": { "type": "integer", "description": "With px: dictate the terms. Omit both for the seeded broker." },
           "px": { "$ref": "#/components/schemas/Money" }
         }
@@ -332,8 +332,9 @@
       },
       "OrderView": {
         "type": "object",
+        "description": "Every id is labelled by its FIX role: clientOrderId (ClOrdID 11, ours), brokerOrderId (OrderID 37, the venue's order), and each fill carries execId (ExecID 17). Nothing is called plain orderId — in FIX that means the broker's id, and ambiguity here is how fills get booked against the wrong order.",
         "properties": {
-          "id": { "type": "integer" }, "participant": { "type": "string" }, "symbol": { "type": "string" },
+          "clientOrderId": { "type": "integer" }, "participant": { "type": "string" }, "symbol": { "type": "string" },
           "side": { "type": "string", "enum": ["buy", "sell"] }, "qty": { "type": "integer" },
           "limitPx": { "$ref": "#/components/schemas/Money" },
           "state": { "type": "string", "enum": ["NEW", "ACKNOWLEDGED", "PARTIALLY_FILLED", "FILLED", "CANCELLED", "REJECTED"] },

@@ -46,7 +46,8 @@ pub struct ReplaceOrder {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Execute {
-    pub order_id: u64,
+    /// The **client** order id (FIX 11) — the id you were given at submit.
+    pub client_order_id: u64,
     #[serde(default)]
     pub qty: Option<i64>,
     #[serde(default)]
@@ -85,7 +86,10 @@ pub struct CreateInstrument {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OrderView {
-    pub id: u64,
+    /// Ours — FIX `ClOrdID` (11). Never called plain "orderId": in FIX,
+    /// *OrderID* is tag 37, the broker's id, and a field named `orderId`
+    /// carrying the client id would read backwards to anyone fluent.
+    pub client_order_id: u64,
     pub participant: String,
     pub symbol: String,
     pub side: &'static str,
@@ -101,7 +105,7 @@ pub struct OrderView {
     pub fees: String,
     pub remaining_qty: i64,
     pub broker_order_id: Option<u64>,
-    /// The order this one replaced. FIX `OrigClOrdID`.
+    /// `clientOrderId` of the order this one replaced. FIX `OrigClOrdID` (41).
     pub replaces: Option<u64>,
     pub submitted_at: i64,
 }
@@ -110,7 +114,7 @@ pub struct OrderView {
 /// `From` impl, so no call site can forget it and silently render zero.
 pub fn order_view(o: &Order, fees: domain::Money) -> OrderView {
     OrderView {
-        id: o.id.get(),
+        client_order_id: o.id.get(),
         participant: o.participant.to_string(),
         symbol: o.symbol.to_string(),
         side: match o.side {
