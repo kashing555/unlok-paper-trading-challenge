@@ -104,15 +104,22 @@ pub struct OrderView {
     /// over the same events, reported beside the gross figure, never inside it.
     pub fees: String,
     pub remaining_qty: i64,
+    /// The venue's OrderID (FIX 37). Null only when the venue never assigned
+    /// one — pre-ack NEW, or REJECTED. Once assigned it never disappears:
+    /// post-trade reconciliation quotes it back at the broker.
     pub broker_order_id: Option<u64>,
     /// `clientOrderId` of the order this one replaced. FIX `OrigClOrdID` (41).
     pub replaces: Option<u64>,
     pub submitted_at: i64,
 }
 
-/// Built with the engine-held fee figure — an explicit argument rather than a
-/// `From` impl, so no call site can forget it and silently render zero.
-pub fn order_view(o: &Order, fees: domain::Money) -> OrderView {
+/// Built with the engine-held figures — explicit arguments rather than a
+/// `From` impl, so no call site can forget one and silently render null.
+pub fn order_view(
+    o: &Order,
+    fees: domain::Money,
+    broker_id: Option<domain::BrokerOrderId>,
+) -> OrderView {
     OrderView {
         client_order_id: o.id.get(),
         participant: o.participant.to_string(),
@@ -128,7 +135,7 @@ pub fn order_view(o: &Order, fees: domain::Money) -> OrderView {
         filled_cost: o.state.cost().to_string(),
         fees: fees.to_string(),
         remaining_qty: o.remaining().map_or(0, |q| q.get()),
-        broker_order_id: o.state.broker_id().map(domain::BrokerOrderId::get),
+        broker_order_id: broker_id.map(domain::BrokerOrderId::get),
         replaces: o.replaces.map(domain::ClientOrderId::get),
         submitted_at: o.submitted_at.as_millis(),
     }

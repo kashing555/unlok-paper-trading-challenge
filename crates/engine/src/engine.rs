@@ -16,9 +16,9 @@ use std::collections::BTreeMap;
 
 use broker::{Broker, BrokerError};
 use domain::{
-    lifecycle, ClientOrderId, DomainError, ExecutionId, Fill, InstrumentSpec, Marks, Money,
-    NewOrder, Order, OrderEvent, ParticipantId, Portfolio, PortfolioError, Px, Qty, RejectReason,
-    Side, Symbol, Timestamp, TradingDay, TransitionError,
+    lifecycle, BrokerOrderId, ClientOrderId, DomainError, ExecutionId, Fill, InstrumentSpec, Marks,
+    Money, NewOrder, Order, OrderEvent, ParticipantId, Portfolio, PortfolioError, Px, Qty,
+    RejectReason, Side, Symbol, Timestamp, TradingDay, TransitionError,
 };
 use scoring::{ladder, leaderboard, DayInput, LadderRow, Leaderboard, ScoringError};
 use thiserror::Error;
@@ -105,6 +105,12 @@ pub struct Engine<B: Broker> {
     /// well-formed symbol); non-empty = allowlist, venue-style REJECTED for
     /// anything off it or off its grids.
     instruments: BTreeMap<Symbol, InstrumentSpec>,
+    /// The venue's order id per order, recorded at the ack and **never
+    /// forgotten** — the state machine drops it on terminal states (a live-
+    /// correlation concern), but reporting must keep it: post-trade is when
+    /// you quote the broker's id back at the broker. Null only ever means
+    /// "the venue never assigned one" (pre-ack NEW, REJECTED).
+    order_broker_ids: BTreeMap<ClientOrderId, BrokerOrderId>,
     /// The trade blotter, per order: every execution with its venue id, in
     /// the order they happened. A projection over `OrderFilled`, so replay
     /// rebuilds it and history is addressable fill by fill.
@@ -136,6 +142,7 @@ impl<B: Broker> Engine<B> {
             seq: 0,
             order_fees: BTreeMap::new(),
             order_executions: BTreeMap::new(),
+            order_broker_ids: BTreeMap::new(),
             instruments: BTreeMap::new(),
             day_turnover: BTreeMap::new(),
             day_fills: BTreeMap::new(),
@@ -219,6 +226,11 @@ impl<B: Broker> Engine<B> {
             return Some(RejectReason::ExceedsSizeLimit);
         }
         None
+    }
+
+    /// The venue's id for this order, if it ever assigned one.
+    pub fn broker_id_of(&self, id: ClientOrderId) -> Option<BrokerOrderId> {
+        self.order_broker_ids.get(&id).copied()
     }
 
     /// One row of the trade blotter.
@@ -687,6 +699,7 @@ impl<B: Broker> Engine<B> {
                 self.order_mut(*id)?.apply(&OrderEvent::Acknowledged {
                     broker_id: *broker_id,
                 })?;
+                self.order_broker_ids.insert(*id, *broker_id);
             }
 
             Event::OrderRejected { id, reason } => {

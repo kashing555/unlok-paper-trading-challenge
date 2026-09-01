@@ -122,7 +122,7 @@ pub async fn portfolio(
 
     let orders = engine
         .working_orders_of(&id)
-        .map(|o| dto::order_view(o, engine.fee_of(o.id)))
+        .map(|o| dto::order_view(o, engine.fee_of(o.id), engine.broker_id_of(o.id)))
         .collect();
     Ok(Json(dto::portfolio_view(
         engine.portfolio(&id)?,
@@ -142,7 +142,7 @@ pub async fn participant_orders(
 
     let orders: Vec<dto::OrderView> = engine
         .orders_of(&id)
-        .map(|o| dto::order_view(o, engine.fee_of(o.id)))
+        .map(|o| dto::order_view(o, engine.fee_of(o.id), engine.broker_id_of(o.id)))
         .collect();
     Ok(Json(json!({ "orders": orders })))
 }
@@ -175,7 +175,11 @@ pub async fn submit_order(
     let engine = app.engine();
     Ok((
         StatusCode::CREATED,
-        Json(dto::order_view(engine.order(id)?, engine.fee_of(id))),
+        Json(dto::order_view(
+            engine.order(id)?,
+            engine.fee_of(id),
+            engine.broker_id_of(id),
+        )),
     ))
 }
 
@@ -184,7 +188,7 @@ pub async fn list_orders(State(state): State<AppState>) -> Json<Value> {
     let engine = app.engine();
     let orders: Vec<dto::OrderView> = engine
         .orders()
-        .map(|o| dto::order_view(o, engine.fee_of(o.id)))
+        .map(|o| dto::order_view(o, engine.fee_of(o.id), engine.broker_id_of(o.id)))
         .collect();
     Json(json!({ "orders": orders }))
 }
@@ -196,7 +200,11 @@ pub async fn get_order(
     let app = state.lock().await;
     let engine = app.engine();
     let id = ClientOrderId::new(id);
-    Ok(Json(dto::order_view(engine.order(id)?, engine.fee_of(id))))
+    Ok(Json(dto::order_view(
+        engine.order(id)?,
+        engine.fee_of(id),
+        engine.broker_id_of(id),
+    )))
 }
 
 pub async fn cancel_order(
@@ -207,7 +215,11 @@ pub async fn cancel_order(
     let mut app = state.lock().await;
     app.execute(now(), Command::CancelOrder { id })?;
     let engine = app.engine();
-    Ok(Json(dto::order_view(engine.order(id)?, engine.fee_of(id))))
+    Ok(Json(dto::order_view(
+        engine.order(id)?,
+        engine.fee_of(id),
+        engine.broker_id_of(id),
+    )))
 }
 
 /// Cancel-replace. Returns **both** sides, because a caller that saw only the
@@ -235,8 +247,16 @@ pub async fn replace_order(
     )?;
 
     let engine = app.engine();
-    let original = dto::order_view(engine.order(id)?, engine.fee_of(id));
-    let replacement = dto::order_view(engine.order(replacement_id)?, engine.fee_of(replacement_id));
+    let original = dto::order_view(
+        engine.order(id)?,
+        engine.fee_of(id),
+        engine.broker_id_of(id),
+    );
+    let replacement = dto::order_view(
+        engine.order(replacement_id)?,
+        engine.fee_of(replacement_id),
+        engine.broker_id_of(replacement_id),
+    );
     Ok(Json(
         json!({ "original": original, "replacement": replacement }),
     ))
@@ -297,7 +317,11 @@ pub async fn execute_order(
     let mut app = state.lock().await;
     app.execute(now(), command)?;
     let engine = app.engine();
-    Ok(Json(dto::order_view(engine.order(id)?, engine.fee_of(id))))
+    Ok(Json(dto::order_view(
+        engine.order(id)?,
+        engine.fee_of(id),
+        engine.broker_id_of(id),
+    )))
 }
 
 // ---- reference data ------------------------------------------------------

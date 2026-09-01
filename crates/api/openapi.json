@@ -342,7 +342,7 @@
           "filledCost": { "$ref": "#/components/schemas/Money" },
           "fees": { "$ref": "#/components/schemas/Money" },
           "remainingQty": { "type": "integer" },
-          "brokerOrderId": { "type": "integer", "nullable": true },
+          "brokerOrderId": { "type": "integer", "nullable": true, "description": "FIX OrderID (37). Null only when the venue never assigned one (pre-ack NEW, REJECTED); once assigned it never disappears" },
           "replaces": { "type": "integer", "nullable": true, "description": "FIX OrigClOrdID — the order this one replaced" },
           "submittedAt": { "type": "integer", "format": "int64" }
         }

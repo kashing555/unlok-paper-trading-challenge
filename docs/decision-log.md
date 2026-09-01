@@ -1219,3 +1219,21 @@ own description. The internal domain never had the problem (`ClientOrderId` /
 `BrokerOrderId` / `ExecutionId` were always explicit); the edge was the only
 place the shorthand had crept in — which is the serde-boundary argument paying
 out once more: one wire layer to fix, zero domain commits.
+
+## 2026-08-30 — brokerOrderId never disappears from the view
+
+**Raised by the operator mid-walkthrough:** should `GET /orders/{clientOrderId}`
+contain the `brokerOrderId`? It did — until the order turned terminal, when it
+went null, because the *state machine* drops the venue id on terminal states (a
+live-correlation concern, correctly). Wrong rule to leak into the API: post-
+trade is exactly when you quote the broker's id back at the broker, and a
+blotter that forgets the counterpart reference at completion fails at the
+moment reconciliation starts.
+
+Fixed as an engine projection (`order_broker_ids`, recorded at the ack), so the
+domain enum stays exactly as A1 decided and the *view* keeps the id forever.
+The new rule is crisp and in the contract: **null only ever means the venue
+never assigned one** — pre-ack `NEW`, or `REJECTED`. `order_view` takes it as a
+third explicit argument, same reasoning as fees: no call site can forget it and
+silently render null. The old test asserting terminal-drops-it now asserts the
+opposite, with the reconciliation argument as its message.
