@@ -410,6 +410,7 @@ async fn the_openapi_contract_matches_the_router() {
         "GET /orders/{clientOrderId}/executions",
         "DELETE /orders/{clientOrderId}",
         "PUT /orders/{clientOrderId}",
+        "GET /executions",
         "POST /broker/executions",
         "GET /instruments",
         "POST /instruments",
@@ -617,4 +618,50 @@ async fn every_fill_carries_the_venues_exec_id() {
         get(&state, "/orders/999/executions").await.0,
         StatusCode::NOT_FOUND
     );
+}
+
+#[tokio::test]
+async fn the_tape_lists_every_execution_across_orders_in_exec_id_order() {
+    let state = app();
+    create(&state, "alice", "100000").await;
+    create(&state, "bob", "100000").await;
+
+    let a = submit(&state, "alice", "buy", 100, "10").await;
+    post(
+        &state,
+        "/broker/executions",
+        json!({"clientOrderId": a, "qty": 40, "px": "10"}),
+    )
+    .await;
+    let b = submit(&state, "bob", "buy", 50, "20").await;
+    post(
+        &state,
+        "/broker/executions",
+        json!({"clientOrderId": b, "qty": 50, "px": "20"}),
+    )
+    .await;
+    post(
+        &state,
+        "/broker/executions",
+        json!({"clientOrderId": a, "qty": 60, "px": "10"}),
+    )
+    .await;
+
+    let (status, tape) = get(&state, "/executions").await;
+    assert_eq!(status, StatusCode::OK);
+    let rows = tape["executions"].as_array().unwrap();
+    assert_eq!(rows.len(), 3);
+    // ExecID order interleaves orders chronologically — one venue, one tape.
+    assert_eq!(
+        rows.iter()
+            .map(|r| (
+                r["execId"].as_u64().unwrap(),
+                r["clientOrderId"].as_u64().unwrap()
+            ))
+            .collect::<Vec<_>>(),
+        vec![(1, a), (2, b), (3, a)]
+    );
+    assert_eq!(rows[1]["participant"], "bob");
+    assert_eq!(rows[2]["qty"], 60);
+    assert_eq!(rows[0]["brokerOrderId"], 1);
 }

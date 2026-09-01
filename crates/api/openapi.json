@@ -144,6 +144,14 @@
         "responses": { "200": { "description": "{ clientOrderId, executions: [{execId, qty, px, fee}] }" }, "404": { "$ref": "#/components/responses/NotFound" } }
       }
     },
+    "/executions": {
+      "get": {
+        "tags": ["View orders and positions"],
+        "summary": "The tape — every execution in the world, ExecID order",
+        "description": "One row per fill, keyed by execId (FIX ExecID 17): the brokerOrderId names the order at the venue and is shared by all its fills, so the blotter keys on the id that names each fill. Every row carries the full trio — execId, clientOrderId, brokerOrderId — plus participant, symbol, side, qty, px, fee.",
+        "responses": { "200": { "description": "{ executions: [{execId, clientOrderId, brokerOrderId, participant, symbol, side, qty, px, fee}] }" } }
+      }
+    },
     "/broker/executions": {
       "post": {
         "tags": ["Generate mock executions"],

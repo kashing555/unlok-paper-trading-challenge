@@ -262,6 +262,35 @@ pub async fn replace_order(
     ))
 }
 
+/// The tape: every execution in the world, ExecID order (= chronological).
+/// Keyed by the execution id — the brokerOrderId names the *order* at the
+/// venue and is shared by all its fills; the ExecID names *each fill*, which
+/// is what a blotter is a list of. cloid and oid ride along, so every row
+/// carries the complete id trio.
+pub async fn executions(State(state): State<AppState>) -> Json<Value> {
+    let app = state.lock().await;
+    let engine = app.engine();
+    let rows: Vec<Value> = engine
+        .all_executions()
+        .into_iter()
+        .filter_map(|(cloid, r)| {
+            let order = engine.order(cloid).ok()?;
+            Some(json!({
+                "execId": r.exec_id.get(),
+                "clientOrderId": cloid.get(),
+                "brokerOrderId": engine.broker_id_of(cloid).map(domain::BrokerOrderId::get),
+                "participant": order.participant.to_string(),
+                "symbol": order.symbol.to_string(),
+                "side": match order.side { Side::Buy => "buy", Side::Sell => "sell" },
+                "qty": r.qty.get(),
+                "px": r.px.to_string(),
+                "fee": r.fee.to_string(),
+            }))
+        })
+        .collect();
+    Json(json!({ "executions": rows }))
+}
+
 /// The trade blotter for one order: every execution with the venue's ExecID
 /// (FIX 17) — the third id of the trio, so each fill is addressable, exactly
 /// as a dispute or a dedup would need it.

@@ -40,7 +40,8 @@ function stateClass(state: string) {
     <table>
       <thead>
         <tr>
-          <th class="num">#</th>
+          <th class="num" title="clientOrderId — ours, FIX ClOrdID 11">cloid</th>
+          <th class="num" title="brokerOrderId — the venue's, FIX OrderID 37">oid</th>
           <th>Participant</th>
           <th>Symbol</th>
           <th>Side</th>
@@ -56,6 +57,7 @@ function stateClass(state: string) {
       <tbody>
         <tr v-for="o in [...s.orders].reverse()" :key="o.clientOrderId">
           <td class="num">{{ o.clientOrderId }}</td>
+          <td class="num dim">{{ o.brokerOrderId ?? '—' }}</td>
           <td>{{ o.participant }}</td>
           <td>{{ o.symbol }}</td>
           <td :class="o.side === 'buy' ? 'up' : 'down'">{{ o.side }}</td>
@@ -85,7 +87,7 @@ function stateClass(state: string) {
           </td>
         </tr>
         <tr v-if="!s.orders.length">
-          <td colspan="11" class="dim">No orders yet.</td>
+          <td colspan="12" class="dim">No orders yet.</td>
         </tr>
       </tbody>
     </table>

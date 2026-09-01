@@ -233,6 +233,18 @@ impl<B: Broker> Engine<B> {
         self.order_broker_ids.get(&id).copied()
     }
 
+    /// The whole tape: every execution in the world, in ExecID order — which
+    /// is mint order, which is chronological. One venue, one tape.
+    pub fn all_executions(&self) -> Vec<(ClientOrderId, ExecutionRow)> {
+        let mut rows: Vec<(ClientOrderId, ExecutionRow)> = self
+            .order_executions
+            .iter()
+            .flat_map(|(id, rows)| rows.iter().map(move |r| (*id, *r)))
+            .collect();
+        rows.sort_by_key(|(_, r)| r.exec_id);
+        rows
+    }
+
     /// One row of the trade blotter.
     pub fn executions_of(&self, id: ClientOrderId) -> &[ExecutionRow] {
         self.order_executions.get(&id).map_or(&[], Vec::as_slice)

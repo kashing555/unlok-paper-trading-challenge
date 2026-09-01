@@ -7,6 +7,7 @@ import {
   type LeaderboardView,
   type OrderView,
   type PortfolioView,
+  type TapeRow,
 } from './api'
 
 // One store, polled. The backend is the source of truth for everything shown
@@ -19,6 +20,7 @@ export const useCockpit = defineStore('cockpit', {
     participants: [] as string[],
     portfolios: {} as Record<string, PortfolioView>,
     orders: [] as OrderView[],
+    executions: [] as TapeRow[],
     days: [] as string[],
     instruments: [] as InstrumentSpecView[],
     marks: [] as { symbol: string; px: string }[],
@@ -35,16 +37,18 @@ export const useCockpit = defineStore('cockpit', {
         this.connected = true
         this.events = Number(health.events ?? 0)
 
-        const [{ participants }, { orders }, { closedDays }, { instruments }, { marks }] =
+        const [{ participants }, { orders }, { closedDays }, { instruments }, { marks }, { executions }] =
           await Promise.all([
             api.participants(),
             api.orders(),
             api.days(),
             api.instruments(),
             api.marks(),
+            api.executions(),
           ])
         this.participants = participants
         this.orders = orders
+        this.executions = executions
         this.days = closedDays
         this.instruments = instruments
         this.marks = marks

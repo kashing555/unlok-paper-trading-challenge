@@ -1237,3 +1237,21 @@ never assigned one** — pre-ack `NEW`, or `REJECTED`. `order_view` takes it as 
 third explicit argument, same reasoning as fees: no call site can forget it and
 silently render null. The old test asserting terminal-drops-it now asserts the
 opposite, with the reconciliation argument as its message.
+
+## 2026-08-30 — the tape on the Simulation page, keyed by ExecID
+
+**Operator ask:** the Simulation page should show all orders by cloid, and
+executions "by brokerOrderId or executionId — whichever is better."
+
+**ExecID is better, and the reason is definitional:** the brokerOrderId names
+the *order* at the venue — every fill of one order shares it — while the ExecID
+names *each fill*, and a blotter is a list of fills. So `GET /executions` (the
+tape: every execution in the world, ExecID order, which is mint order, which is
+chronological) keys rows by tid and carries cloid and oid as correlating
+columns — the complete id trio on every row, which is itself the teaching aid.
+
+The Simulation page's live column now stacks Portfolios → Orders (by cloid,
+with a new oid column on the shared blotter) → Executions (the tape) →
+Rankings, so a run narrates on the left while the trio materialises on the
+right. One new read endpoint; the drift guard demanded its documentation
+before the build passed, as always.

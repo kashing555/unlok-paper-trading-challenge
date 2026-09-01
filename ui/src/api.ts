@@ -64,6 +64,18 @@ export interface LeaderboardView {
   rows: LeaderboardRowView[]
 }
 
+export interface TapeRow {
+  execId: number
+  clientOrderId: number
+  brokerOrderId: number | null
+  participant: string
+  symbol: string
+  side: 'buy' | 'sell'
+  qty: number
+  px: string
+  fee: string
+}
+
 export interface LadderRowView {
   rank: number | null
   participant: string
@@ -141,6 +153,7 @@ export const api = {
     request('POST', '/participants', { id, startingCash }),
   portfolio: (id: string) => request<PortfolioView>('GET', `/participants/${id}/portfolio`),
   orders: () => request<{ orders: OrderView[] }>('GET', '/orders'),
+  executions: () => request<{ executions: TapeRow[] }>('GET', '/executions'),
   submitOrder: (o: {
     participant: string
     symbol: string

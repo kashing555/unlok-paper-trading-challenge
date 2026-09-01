@@ -2,8 +2,10 @@
 import { reactive } from 'vue'
 import { api, ApiError, type OrderView } from '../api'
 import { useCockpit } from '../store'
+import OrdersPanel from './OrdersPanel.vue'
 import Portfolios from './Portfolios.vue'
 import Rankings from './Rankings.vue'
+import TapePanel from './TapePanel.vue'
 
 const s = useCockpit()
 
@@ -135,6 +137,8 @@ async function runDemo() {
     </section>
     <div class="results">
       <Portfolios />
+      <OrdersPanel />
+      <TapePanel />
       <Rankings />
     </div>
   </div>
