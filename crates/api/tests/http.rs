@@ -19,7 +19,12 @@ use tower::ServiceExt;
 
 fn app() -> AppState {
     Arc::new(Mutex::new(
-        App::open(SqliteLog::in_memory().unwrap(), MockBroker::simple(7)).unwrap(),
+        App::open(
+            SqliteLog::in_memory().unwrap(),
+            || MockBroker::simple(7),
+            vec![],
+        )
+        .unwrap(),
     ))
 }
 
@@ -335,7 +340,12 @@ async fn state_survives_a_restart_because_the_log_does() {
     let _ = std::fs::remove_file(&path);
 
     let first = Arc::new(Mutex::new(
-        App::open(SqliteLog::open(&path).unwrap(), MockBroker::simple(7)).unwrap(),
+        App::open(
+            SqliteLog::open(&path).unwrap(),
+            || MockBroker::simple(7),
+            vec![],
+        )
+        .unwrap(),
     ));
     create(&first, "alice", "100000").await;
     let id = submit(&first, "alice", "buy", 100, "10").await;
@@ -346,7 +356,12 @@ async fn state_survives_a_restart_because_the_log_does() {
 
     // New process, different broker seed: everything comes back from the log.
     let second = Arc::new(Mutex::new(
-        App::open(SqliteLog::open(&path).unwrap(), MockBroker::simple(9999)).unwrap(),
+        App::open(
+            SqliteLog::open(&path).unwrap(),
+            || MockBroker::simple(9999),
+            vec![],
+        )
+        .unwrap(),
     ));
     let (status, after) = get(&second, "/participants/alice/portfolio").await;
     assert_eq!(status, StatusCode::OK);
@@ -384,6 +399,7 @@ async fn the_openapi_contract_matches_the_router() {
 
     let mut served = vec![
         "GET /health",
+        "POST /reset",
         "POST /participants",
         "GET /participants",
         "GET /participants/{id}/portfolio",
@@ -528,4 +544,42 @@ async fn the_security_master_is_crud_and_governs_submissions() {
         marks["marks"],
         json!([{"symbol":"AAPL","px":"11.5000"},{"symbol":"MSFT","px":"21.0000"}])
     );
+}
+
+#[tokio::test]
+async fn reset_restores_the_boot_world_deterministically() {
+    let state = app();
+    create(&state, "alice", "100000").await;
+    let id = submit(&state, "alice", "buy", 100, "10").await;
+    post(&state, "/broker/executions", json!({"orderId": id})).await;
+    mark(&state, "12").await;
+    post(&state, "/days/2026-08-28/close", Value::Null).await;
+
+    let (status, body) = post(&state, "/reset", Value::Null).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["participants"], 0);
+    assert_eq!(body["events"], 0);
+
+    // The world is gone: no participants, no orders, no closed days.
+    let (_, h) = get(&state, "/health").await;
+    assert_eq!(h["orders"], 0);
+    assert_eq!(h["closedDays"], 0);
+    assert_eq!(
+        get(&state, "/participants/alice/portfolio").await.0,
+        StatusCode::NOT_FOUND
+    );
+
+    // And it is the BOOT world, not merely an empty one: ids restart at 1 and
+    // the reborn broker mints from 1 again — a fresh RNG stream, so the reset
+    // world is exactly as deterministic as a rebooted one.
+    create(&state, "alice", "100000").await;
+    let (s2, order) = post(
+        &state,
+        "/orders",
+        json!({"participant":"alice","symbol":"AAPL","side":"buy","qty":10,"limitPx":"10"}),
+    )
+    .await;
+    assert_eq!(s2, StatusCode::CREATED);
+    assert_eq!(order["id"], 1);
+    assert_eq!(order["brokerOrderId"], 1);
 }

@@ -29,31 +29,72 @@ use axum::{
     Router,
 };
 use broker::MockBroker;
-use domain::{ClientOrderId, Timestamp};
+use domain::{ClientOrderId, InstrumentSpec, Timestamp};
 use engine::{Command, Engine};
 use store::{EventLog, SqliteLog};
 use tokio::sync::Mutex;
 
 pub use error::AppError;
 
+type BrokerFactory = Box<dyn Fn() -> MockBroker + Send + Sync>;
+
 pub struct App {
     engine: Engine<MockBroker>,
     log: SqliteLog,
     next_order_id: u64,
+    /// Rebuilds the broker on reset — a fresh RNG stream and id counter, so a
+    /// reset world is as deterministic as a booted one. Reusing the old broker
+    /// would leak the previous world's randomness into the new one.
+    make_broker: BrokerFactory,
+    /// Instrument seeds re-applied (as fresh journalled events) after a reset,
+    /// so reset behaves exactly like delete-the-file-and-reboot, self-served.
+    seeds: Vec<InstrumentSpec>,
 }
 
 impl App {
     /// Open a log and rebuild state from it. An empty log gives an empty
     /// competition; a populated one continues exactly where it left off.
-    pub fn open(log: SqliteLog, broker: MockBroker) -> Result<Self, AppError> {
+    pub fn open(
+        log: SqliteLog,
+        make_broker: impl Fn() -> MockBroker + Send + Sync + 'static,
+        seeds: Vec<InstrumentSpec>,
+    ) -> Result<Self, AppError> {
         let entries = log.read_all()?;
-        let engine = Engine::replay(broker, entries)?;
+        let engine = Engine::replay(make_broker(), entries)?;
         let next_order_id = engine.next_order_id();
-        Ok(Self {
+        let mut app = Self {
             engine,
             log,
             next_order_id,
-        })
+            make_broker: Box::new(make_broker),
+            seeds,
+        };
+        app.apply_seeds()?;
+        Ok(app)
+    }
+
+    /// Seeds land only in an empty registry — the log is the authority, and
+    /// neither a restart nor a reset may fight what the API has since edited.
+    /// After a reset there is nothing to fight, so they land fresh.
+    fn apply_seeds(&mut self) -> Result<(), AppError> {
+        if self.engine.instruments().next().is_some() {
+            return Ok(());
+        }
+        for spec in self.seeds.clone() {
+            self.execute(now(), Command::CreateInstrument { spec })?;
+        }
+        Ok(())
+    }
+
+    /// Destroy the world and restore the boot state: empty log, reborn engine
+    /// and broker, seeds re-applied as fresh events. Every participant, order,
+    /// mark and closed day is gone. The log is append-only *within* a
+    /// competition; the competition itself is the operator's to discard.
+    pub fn reset(&mut self) -> Result<(), AppError> {
+        self.log.clear()?;
+        self.engine = Engine::new((self.make_broker)());
+        self.next_order_id = 1;
+        self.apply_seeds()
     }
 
     /// Write ahead: plan, persist, then apply.
@@ -115,6 +156,7 @@ const DOCS: &str = r#"<!doctype html><html><head>
 pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/health", get(routes::health))
+        .route("/reset", post(routes::reset))
         .route(
             "/openapi.json",
             get(|| async {

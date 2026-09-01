@@ -37,6 +37,11 @@ pub trait EventLog {
     fn append(&mut self, entries: &[Journaled]) -> Result<(), StoreError>;
     fn read_all(&self) -> Result<Vec<Journaled>, StoreError>;
 
+    /// Destroy the world. The log is append-only *within* a competition; the
+    /// competition itself is the operator's to discard — reset restores the
+    /// boot state, it does not rewrite history inside one.
+    fn clear(&mut self) -> Result<(), StoreError>;
+
     fn last_seq(&self) -> Result<u64, StoreError> {
         Ok(self.read_all()?.last().map_or(0, |e| e.seq))
     }
@@ -94,6 +99,11 @@ impl EventLog for SqliteLog {
         Ok(())
     }
 
+    fn clear(&mut self) -> Result<(), StoreError> {
+        self.conn.execute("DELETE FROM events", [])?;
+        Ok(())
+    }
+
     fn read_all(&self) -> Result<Vec<Journaled>, StoreError> {
         let mut stmt = self
             .conn
@@ -146,5 +156,10 @@ impl EventLog for InMemoryLog {
 
     fn read_all(&self) -> Result<Vec<Journaled>, StoreError> {
         Ok(self.entries.clone())
+    }
+
+    fn clear(&mut self) -> Result<(), StoreError> {
+        self.entries.clear();
+        Ok(())
     }
 }

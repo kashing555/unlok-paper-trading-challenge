@@ -1155,3 +1155,24 @@ not a function of price, so the *conditional* regulatory tick (penny above $1)
 remains unmodelled.
 
 103 tests; cockpit gains an instruments admin block and per-symbol tick chips.
+
+## 2026-08-30 — POST /reset: the world is disposable; history within it is not
+
+**The design question a reset poses to an event-sourced system:** append a
+`CompetitionReset` event and teach every fold to zero itself, or restore the
+boot world? The first preserves dead history that taxes every boot and has no
+consumer. Taken instead: **reset ≡ delete-the-file-and-reboot, self-served** —
+`EventLog::clear()` (the log is append-only *within* a competition; the
+competition itself is the operator's to discard), a reborn engine, and —
+the subtle requirement — **a reborn broker**: reusing the old one would leak
+the previous world's RNG stream and id counter into the new one, so `App` now
+holds a broker *factory* rather than a broker, and a reset world is exactly as
+deterministic as a booted one. Verified: after reset, order ids and broker ids
+both mint from 1 again.
+
+`PTC_SYMBOLS` seeding moved from `main` into `App::apply_seeds`, applied on
+open *and* on reset, still only ever into an empty registry. The drift guard
+fired again — `/reset` undocumented failed the build until the contract
+carried it — and the cockpit gained a guarded reset button in the top bar.
+Beyond the brief, labelled as such in the contract: this is the paper system's
+demo-account reset, a feature real brokers ship.

@@ -5,9 +5,15 @@ import OrdersPanel from './components/OrdersPanel.vue'
 import Portfolios from './components/Portfolios.vue'
 import Rankings from './components/Rankings.vue'
 import SimulationPage from './components/SimulationPage.vue'
+import { api } from './api'
 import { useCockpit } from './store'
 
 const s = useCockpit()
+
+async function resetWorld() {
+  if (!window.confirm('Reset everything? Participants, orders, marks and closed days are all destroyed.')) return
+  await s.attempt(() => api.reset())
+}
 // Two pages, one reactive switch. vue-router would be a dependency for a
 // boolean — the same declined-forwarding-layer argument as everywhere else.
 const page = ref<'console' | 'simulation'>('console')
@@ -34,6 +40,13 @@ onUnmounted(() => window.clearInterval(timer))
         </nav>
       </div>
       <div style="display: flex; gap: 8px; align-items: center">
+        <button
+          class="danger"
+          title="Destroy the world: back to the boot state (seeded instruments only)"
+          @click="resetWorld"
+        >
+          reset
+        </button>
         <span class="tag">{{ s.events }} events</span>
         <span :class="s.connected ? 'tag done' : 'tag dead'">
           {{ s.connected ? 'connected' : 'no backend' }}
@@ -74,6 +87,13 @@ onUnmounted(() => window.clearInterval(timer))
   border-bottom: 1px solid var(--line);
   margin-bottom: 16px;
 }
+button.danger {
+  border-color: #6b2320;
+  color: var(--down);
+  font-size: 12px;
+  padding: 3px 10px;
+}
+button.danger:hover { background: #2a1210; border-color: var(--down); }
 .banner {
   background: #2d1e0a;
   border: 1px solid #5c4413;

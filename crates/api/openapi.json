@@ -17,6 +17,14 @@
     { "name": "Health" }
   ],
   "paths": {
+    "/reset": {
+      "post": {
+        "tags": ["Health"],
+        "summary": "Operator reset: destroy the world, restore the boot state",
+        "description": "Destructive and deliberate. Empties the event log, rebirths the engine and the broker (fresh RNG stream and id counters — a reset world is exactly as deterministic as a rebooted one), and re-applies the instrument seeds as fresh journalled events. The log is append-only *within* a competition; the competition itself is the operator's to discard. Beyond the brief: this is the paper system's demo-account reset.",
+        "responses": { "200": { "description": "{ status: \"reset\", instruments, participants, events }" } }
+      }
+    },
     "/health": {
       "get": {
         "tags": ["Health"],

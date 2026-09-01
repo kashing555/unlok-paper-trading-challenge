@@ -9,7 +9,6 @@ use std::collections::BTreeSet;
 
 use broker::{FeeSchedule, FillPolicy, MockBroker};
 use domain::{InstrumentSpec, Px, Qty, Symbol};
-use engine::Command;
 use store::SqliteLog;
 use tokio::sync::Mutex;
 
@@ -96,36 +95,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         SqliteLog::open(&config.db)?
     };
 
-    let broker = MockBroker::new(
-        config.seed,
-        FillPolicy::Partial {
-            max_slices: config.max_slices,
-        },
-        FeeSchedule {
-            bps: config.fee_bps,
-        },
-    );
+    let seed = config.seed;
+    let fee_bps = config.fee_bps;
+    let max_slices = config.max_slices;
+    let make_broker = move || {
+        MockBroker::new(
+            seed,
+            FillPolicy::Partial { max_slices },
+            FeeSchedule { bps: fee_bps },
+        )
+    };
 
-    let mut app = App::open(log, broker)?;
+    let seeds = config
+        .symbols
+        .iter()
+        .map(|symbol| {
+            InstrumentSpec::new(symbol.clone(), Px::MIN_TICK, Qty::ONE, config.max_order_qty)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
 
-    // PTC_SYMBOLS seeds the security master — as journalled events, once. If
-    // the log already carries instruments the env is ignored: the log is the
-    // authority and a restart must not fight what the API has since edited.
-    if app.engine().instruments().next().is_none() && !config.symbols.is_empty() {
-        for symbol in &config.symbols {
-            app.execute(
-                api::now(),
-                Command::CreateInstrument {
-                    spec: InstrumentSpec::new(
-                        symbol.clone(),
-                        Px::MIN_TICK,
-                        Qty::ONE,
-                        config.max_order_qty,
-                    )?,
-                },
-            )?;
-        }
-    }
+    let app = App::open(log, make_broker, seeds)?;
     let state: AppState = Arc::new(Mutex::new(app));
     let listener = tokio::net::TcpListener::bind(&config.addr).await?;
 

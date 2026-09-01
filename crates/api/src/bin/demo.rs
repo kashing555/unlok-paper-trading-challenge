@@ -34,13 +34,15 @@ struct Demo {
 
 impl Demo {
     fn new() -> Result<Self, Box<dyn Error>> {
-        let broker = MockBroker::new(
-            SEED,
-            FillPolicy::Partial { max_slices: 3 },
-            FeeSchedule { bps: FEE_BPS },
-        );
+        let make_broker = || {
+            MockBroker::new(
+                SEED,
+                FillPolicy::Partial { max_slices: 3 },
+                FeeSchedule { bps: FEE_BPS },
+            )
+        };
         Ok(Self {
-            app: App::open(SqliteLog::in_memory()?, broker)?,
+            app: App::open(SqliteLog::in_memory()?, make_broker, vec![])?,
             clock: 1_772_000_000_000,
         })
     }

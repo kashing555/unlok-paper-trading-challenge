@@ -59,6 +59,21 @@ pub async fn health(State(state): State<AppState>) -> Json<Value> {
     }))
 }
 
+/// Operator-only, destructive, deliberately blunt: back to the boot world.
+/// Same broker seed, same instrument seeds — so a reset world replays the
+/// walkthrough with identical numbers, which is the whole point of having it.
+pub async fn reset(State(state): State<AppState>) -> Result<Json<Value>, AppError> {
+    let mut app = state.lock().await;
+    app.reset()?;
+    let engine = app.engine();
+    Ok(Json(json!({
+        "status": "reset",
+        "instruments": engine.instruments().count(),
+        "participants": engine.participants().count(),
+        "events": engine.seq(),
+    })))
+}
+
 // ---- participants --------------------------------------------------------
 
 pub async fn create_participant(

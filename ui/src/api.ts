@@ -123,6 +123,8 @@ export interface InstrumentSpecView {
 
 export const api = {
   health: () => request<Record<string, unknown>>('GET', '/health'),
+  reset: () =>
+    request<{ status: string; instruments: number }>('POST', '/reset'),
   instruments: () =>
     request<{ instruments: InstrumentSpecView[] }>('GET', '/instruments'),
   createInstrument: (symbol: string, tick: string, maxOrderQty?: number) =>
