@@ -163,7 +163,7 @@ which point there is no record of what was actually working at the venue.
 ## 6. Mock broker
 
 Deterministic and seeded — same seed produces the same execution reports, which
-is what makes the test suite meaningful and the demo repeatable.
+is what makes the test suite meaningful and every run reproducible.
 
 - **Explicit mode (default).** Executions are driven through the API:
   `POST /broker/executions` with quantity and price. Total control, used by
@@ -302,7 +302,7 @@ crates/
   engine/       command → decide → events → apply, the single writer
   store/        SQLite append-only event log + projection rebuild
   api/          application assembly (`App`: engine + log + write-ahead),
-                Axum HTTP and DTOs, one `ptc` binary: serve · `demo`
+                Axum HTTP and DTOs, the `ptc` server
 ui/             Vue 3 + TS + Vite cockpit — beyond the brief, see README
 ```
 
@@ -311,7 +311,7 @@ Integration tests live inside the crate they exercise (`engine/tests/`,
 
 ```mermaid
 flowchart TD
-    CL["curl · ptc demo · cockpit"] --> API["<b>api</b><br/>handlers · DTOs · one mutex"]
+    CL["curl · Swagger · cockpit"] --> API["<b>api</b><br/>handlers · DTOs · one mutex"]
     API --> ENG["<b>engine</b><br/>decide → events → apply"]
     ENG -->|port| BRK["<b>broker</b><br/>seeded, deterministic"]
     ENG -->|port| ST["<b>store</b><br/>SQLite event log"]

@@ -43,8 +43,7 @@ The schedule will slip somewhere. Cut in a fixed order so the decision is made
 now, calmly, rather than at midnight on day two:
 
 1. **D1, the cockpit** — beyond the brief by definition.
-2. **C2, the CLI** — the API already satisfies "a simple way to".
-3. **Optional polish** — OpenAPI extras, extra broker fill policies.
+2. **Optional polish** — OpenAPI extras, extra broker fill policies.
 
 **Never cut, in any circumstance:** tests (a listed deliverable), the README (a
 listed deliverable), or anything inside Stage A (the scored content).

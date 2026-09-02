@@ -82,7 +82,7 @@ Before saying done: `cargo fmt` · `cargo clippy --all-targets -- -D warnings` �
 ## How this is built
 
 **The engine first.** Order lifecycle, position/P&L accounting and the broker
-are the scored content; HTTP, storage, CLI and the cockpit are transport and
+are the scored content; HTTP, storage and the cockpit are transport and
 come after. The core is fully tested standing alone — no server, no database —
 before any transport exists. If that ordering ever feels awkward, rule 2 has
 already been broken and that is the bug to fix.
@@ -99,7 +99,7 @@ crates/
   engine/     command → decide → events → apply
   store/      SQLite append-only event log + projection replay
   api/        App (engine + log + write-ahead), Axum HTTP and DTOs,
-              one `ptc` binary — serves by default, `ptc demo` scripted run
+              the `ptc` server
 ui/           Vue 3 cockpit — beyond the brief
 docs/         design · ranking · build order · decision log
 .claude/      working agreements — this file's context

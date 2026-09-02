@@ -29,13 +29,6 @@ jobs:
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace
 
-      # The demo is deterministic by design; if two runs ever differ, something
-      # is reading a clock or an unseeded RNG.
-      - name: demo output is reproducible
-        run: |
-          cargo run --quiet --bin ptc -- demo > /tmp/run1.txt
-          cargo run --quiet --bin ptc -- demo > /tmp/run2.txt
-          diff /tmp/run1.txt /tmp/run2.txt
 
       # domain is the pure core. If an async runtime, HTTP, SQL or a clock ever
       # appears in its tree, the dependency rule has been broken silently.

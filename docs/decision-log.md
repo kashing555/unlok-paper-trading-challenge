@@ -1295,3 +1295,26 @@ smaller file count. The refactor is behaviour-preserving by construction and
 by check: the demo's stdout was captured before the move and diffed after —
 byte-identical — which is also what keeps CI's own diff honest across the
 change.
+
+## 2026-09-02 — the demo is removed: one interface, the API
+
+**Operator ask:** remove the demo.
+
+This supersedes this morning's fold. `ptc demo` — the scripted CLI run — is
+deleted outright: `src/demo.rs`, the `main` dispatch, the CI diff step, and
+every doc that pointed at it. The brief asks for *a* simple way to drive the
+seven operations; the REST API with Swagger at `/docs` is that way, and the
+cockpit's Simulation page still plays the same two-day scenario through the
+public endpoints for anyone who wants to watch it.
+
+What the CI step was proving does not leave with it. The run-twice-and-diff
+check was an end-to-end restatement of properties the suite asserts directly:
+replay through SQLite with a different broker seed reproduces state exactly,
+shuffled input produces identical rankings, reset rebuilds the same world,
+and the broker is seeded per test. Determinism stays a tested property; it
+loses one redundant witness.
+
+Cost owned in the same breath: the README loses its zero-setup first command —
+the quick start is now "start the server, open `/docs`" — and stage C2 in
+`build-order.md` records a component that was built, closed and then removed.
+Both are stated where they live.

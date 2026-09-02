@@ -26,7 +26,7 @@ npm run typecheck
 operations — create participants, submit/cancel/replace, drive executions,
 update marks, view orders and positions, close a day, view both rankings.
 
-**Simulation** runs the full two-day `ptc demo` scenario through the same
+**Simulation** runs a scripted two-day competition through the same
 public REST endpoints the console uses — partial fill, a cancel that keeps its
 fills, a cancel-replace, marks, two day closes, and carol who never trades —
 with the narrated log on the left and portfolios/rankings filling in live on

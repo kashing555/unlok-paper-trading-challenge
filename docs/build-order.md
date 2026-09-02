@@ -3,7 +3,7 @@
 > The principle from [`.claude/principles.md`](../.claude/principles.md) §8:
 > **the engine is the product; everything else is a way to reach it.** Order
 > lifecycle, position/P&L accounting and the broker are what the brief scores.
-> HTTP, persistence, CLI and the cockpit are transport, and if the dependency
+> HTTP, persistence and the cockpit are transport, and if the dependency
 > rule holds they can be added later without changing a line of the core.
 >
 > Each stage lists what lands, **the test that closes it**, and what it unblocks.
@@ -116,7 +116,8 @@ current state, and the handler layer holds no logic worth unit-testing.
 
 **C2 · CLI.** Thin driver over the same service layer: one command replays a
 full competition day. *Closes when:* the reviewer can run it and read the
-leaderboard without touching curl.
+leaderboard without touching curl. *(Built and closed as specified; later
+removed — one interface is enough and the API is it. Decision-log 2026-09-02.)*
 
 **Then:** finalise `README.md` — architecture, decisions, P&L and ranking,
 assumptions and limitations, production delta. It is a graded deliverable, so it

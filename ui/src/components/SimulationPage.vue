@@ -9,7 +9,7 @@ import TapePanel from './TapePanel.vue'
 
 const s = useCockpit()
 
-// The `ptc demo` scenario, driven through the same REST endpoints as every
+// A scripted two-day competition, driven through the same REST endpoints as every
 // button in this cockpit — no private path, so what you watch is exactly
 // what the API can do. Adapts to live state: participants are created only
 // if missing, and the two closed days are the next ones after whatever is

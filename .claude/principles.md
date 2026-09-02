@@ -48,8 +48,7 @@ knows the outside exists.
 `engine` depending on `store`, which is impossible — `store` persists
 `engine`'s event type, so it depends on `engine`, and the reverse would be a
 cycle. The application assembly that needs both (`App`) therefore lives in
-`api` alongside the HTTP surface, and the demo CLI is a `demo` subcommand of
-that crate's single binary rather than a crate of its own. The stricter version — the `EventLog`
+`api` alongside the HTTP surface. The stricter version — the `EventLog`
 port defined in `engine` and implemented by `store`, letting `App` move down a
 layer — is the right shape and is noted as a production delta.
 
@@ -122,8 +121,7 @@ for the strongest one everywhere is how a codebase becomes unreadable.
 
 Coupling is not a feeling. Each of these is a check that either passes or fails:
 
-- **The deletion test.** Delete `ui/`, then `api/` — the demo CLI is a
-  subcommand of that crate's binary, so it goes with it. Does everything
+- **The deletion test.** Delete `ui/`, then `api/`. Does everything
   the brief scores still compile and test? If not, scored logic has leaked into
   transport. *(This is why the README can promise the service is complete with
   `ui/` deleted — it is a property we can actually run.)*
@@ -313,7 +311,7 @@ Detail in [`docs/build-order.md`](../docs/build-order.md). The principle:
 
 **The engine is the product; everything else is a way to reach it.** Order
 lifecycle, position and P&L accounting, and the broker are what the brief
-scores. HTTP, CLI, persistence and the cockpit are transport and can be added
+scores. HTTP, persistence and the cockpit are transport and can be added
 without changing a line of the core — provided the dependency rule above held.
 
 So the core is built and fully tested standing alone, before any transport
