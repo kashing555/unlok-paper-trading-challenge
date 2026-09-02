@@ -99,7 +99,7 @@ crates/
   engine/     command → decide → events → apply
   store/      SQLite append-only event log + projection replay
   api/        App (engine + log + write-ahead), Axum HTTP and DTOs,
-              the `ptc` server and the `ptc-demo` CLI
+              one `ptc` binary — serves by default, `ptc demo` scripted run
 ui/           Vue 3 cockpit — beyond the brief
 docs/         design · ranking · build order · decision log
 .claude/      working agreements — this file's context

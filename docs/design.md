@@ -302,7 +302,7 @@ crates/
   engine/       command → decide → events → apply, the single writer
   store/        SQLite append-only event log + projection rebuild
   api/          application assembly (`App`: engine + log + write-ahead),
-                Axum HTTP and DTOs, the `ptc` server and the `ptc-demo` CLI
+                Axum HTTP and DTOs, one `ptc` binary: serve · `demo`
 ui/             Vue 3 + TS + Vite cockpit — beyond the brief, see README
 ```
 
@@ -311,7 +311,7 @@ Integration tests live inside the crate they exercise (`engine/tests/`,
 
 ```mermaid
 flowchart TD
-    CL["curl · ptc-demo · cockpit"] --> API["<b>api</b><br/>handlers · DTOs · one mutex"]
+    CL["curl · ptc demo · cockpit"] --> API["<b>api</b><br/>handlers · DTOs · one mutex"]
     API --> ENG["<b>engine</b><br/>decide → events → apply"]
     ENG -->|port| BRK["<b>broker</b><br/>seeded, deterministic"]
     ENG -->|port| ST["<b>store</b><br/>SQLite event log"]

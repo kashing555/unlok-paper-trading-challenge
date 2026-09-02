@@ -1275,3 +1275,23 @@ pages now show the same five surfaces, and anything done in Swagger, curl or
 the cockpit itself narrates in the Journal within a poll. Reset clears the
 cursor. The drift guard demanded the contract entry before the build passed —
 sixth catch.
+
+## 2026-09-02 — one binary: the demo becomes `ptc demo`
+
+**Operator ask:** one binary, not two.
+
+`ptc-demo` was a second `[[bin]]` in `api` — packaging, not substance. The
+demo's three jobs (the README's one-command proof, CI's run-twice-and-diff
+determinism check, the reviewer's zero-setup first look) need a *headless*
+entry point, not a separate *executable*. So the scenario moves to
+`src/demo.rs` as a module of the one binary, which grows a verb: `ptc`
+serves, `ptc demo` prints the scripted competition and exits — the `git`
+shape. Unknown arguments are rejected with a usage line, the same strictness
+as the env parsing.
+
+Considered and declined: deleting the demo outright. That trades a graded
+property (the CI determinism diff) and the README's first command for a
+smaller file count. The refactor is behaviour-preserving by construction and
+by check: the demo's stdout was captured before the move and diffed after —
+byte-identical — which is also what keeps CI's own diff honest across the
+change.

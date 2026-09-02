@@ -7,7 +7,7 @@ scored work was complete. The service is fully usable with this directory
 deleted; nothing in `crates/` depends on it.
 
 ```bash
-cargo run --bin ptc          # terminal 1 — the API on :8080
+cargo run                    # terminal 1 — the API on :8080
 cd ui && npm install && npm run dev
 ```
 
@@ -26,7 +26,7 @@ npm run typecheck
 operations — create participants, submit/cancel/replace, drive executions,
 update marks, view orders and positions, close a day, view both rankings.
 
-**Simulation** runs the full two-day `ptc-demo` scenario through the same
+**Simulation** runs the full two-day `ptc demo` scenario through the same
 public REST endpoints the console uses — partial fill, a cancel that keeps its
 fills, a cancel-replace, marks, two day closes, and carol who never trades —
 with the narrated log on the left and portfolios/rankings filling in live on

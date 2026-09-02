@@ -1,11 +1,10 @@
-//! `ptc-demo` — a full competition, start to finish, in one command.
+//! `ptc demo` — a full competition, start to finish, in one command.
 //!
 //! Drives the **same application layer the HTTP API drives** (`api::App`), not
 //! the API itself: no server, no ports, nothing to leave running. Every
 //! timestamp is supplied rather than read from a clock and the broker is
-//! seeded, so **the output is byte-identical on every run** and can be diffed.
-
-#![forbid(unsafe_code)]
+//! seeded, so **the output is byte-identical on every run** and can be diffed —
+//! CI runs it twice and does exactly that.
 
 use std::error::Error;
 
@@ -245,7 +244,7 @@ impl Demo {
     }
 }
 
-fn main() -> Result<(), Box<dyn Error>> {
+pub fn run() -> Result<(), Box<dyn Error>> {
     let mut d = Demo::new()?;
 
     println!("PAPER TRADING COMPETITION — scripted demo");

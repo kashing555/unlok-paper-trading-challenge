@@ -8,7 +8,7 @@ overall rankings.
 107 tests; `./scripts/check.sh` runs fmt, `clippy -D warnings` and the suite.
 
 ```bash
-cargo run --bin ptc-demo     # a full two-day competition, start to finish
+cargo run -- demo            # a full two-day competition, start to finish
 ```
 
 > This README is the brief overview it was asked to be. The full treatment lives
@@ -23,8 +23,8 @@ A stable Rust toolchain (tested on 1.97). SQLite is bundled — nothing to insta
 
 ```bash
 cargo test --workspace       # 107 tests
-cargo run --bin ptc-demo     # scripted demo: seeded broker, fixed clock, reproducible
-cargo run --bin ptc          # server on http://127.0.0.1:8080
+cargo run -- demo            # scripted demo: seeded broker, fixed clock, reproducible
+cargo run                    # server on http://127.0.0.1:8080
 ```
 
 **Interactive API docs** at [`/docs`](http://127.0.0.1:8080/docs) — Swagger UI
@@ -71,7 +71,7 @@ crates/
   scoring/   daily results, leaderboard, ladder                  PURE — no I/O
   engine/    command -> decide -> events -> apply
   store/     SQLite append-only event log + replay
-  api/       App (engine + log), Axum HTTP, `ptc` server, `ptc-demo` CLI
+  api/       App (engine + log), Axum HTTP, one `ptc` binary: serve · `demo`
 ```
 
 ```mermaid

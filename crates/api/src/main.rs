@@ -12,6 +12,8 @@ use domain::{InstrumentSpec, Px, Qty, Symbol};
 use store::SqliteLog;
 use tokio::sync::Mutex;
 
+mod demo;
+
 /// Configuration, from the environment with documented defaults. Kept tiny on
 /// purpose: a config system is not what this exercise is being scored on.
 struct Config {
@@ -87,6 +89,16 @@ fn parse_var<T: std::str::FromStr>(
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // One binary, two verbs: bare `ptc` serves; `ptc demo` prints the scripted
+    // competition and exits. Anything else is rejected, not guessed at — the
+    // same strictness as the env parsing above.
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    match args.as_slice() {
+        [] => {}
+        [verb] if verb.as_str() == "demo" => return demo::run(),
+        _ => return Err(format!("usage: ptc [demo] — got: {}", args.join(" ")).into()),
+    }
+
     let config = Config::from_env()?;
 
     let log = if config.db == ":memory:" {

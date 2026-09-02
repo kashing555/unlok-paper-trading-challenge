@@ -48,8 +48,8 @@ knows the outside exists.
 `engine` depending on `store`, which is impossible — `store` persists
 `engine`'s event type, so it depends on `engine`, and the reverse would be a
 cycle. The application assembly that needs both (`App`) therefore lives in
-`api` alongside the HTTP surface, and the `ptc-demo` CLI is a second binary in
-that crate rather than a crate of its own. The stricter version — the `EventLog`
+`api` alongside the HTTP surface, and the demo CLI is a `demo` subcommand of
+that crate's single binary rather than a crate of its own. The stricter version — the `EventLog`
 port defined in `engine` and implemented by `store`, letting `App` move down a
 layer — is the right shape and is noted as a production delta.
 
@@ -122,8 +122,8 @@ for the strongest one everywhere is how a codebase becomes unreadable.
 
 Coupling is not a feeling. Each of these is a check that either passes or fails:
 
-- **The deletion test.** Delete `ui/`, then `api/` — the CLI is a second
-  binary in that crate, so it goes with it. Does everything
+- **The deletion test.** Delete `ui/`, then `api/` — the demo CLI is a
+  subcommand of that crate's binary, so it goes with it. Does everything
   the brief scores still compile and test? If not, scored logic has leaked into
   transport. *(This is why the README can promise the service is complete with
   `ui/` deleted — it is a property we can actually run.)*

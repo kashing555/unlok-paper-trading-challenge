@@ -33,8 +33,8 @@ jobs:
       # is reading a clock or an unseeded RNG.
       - name: demo output is reproducible
         run: |
-          cargo run --quiet --bin ptc-demo > /tmp/run1.txt
-          cargo run --quiet --bin ptc-demo > /tmp/run2.txt
+          cargo run --quiet --bin ptc -- demo > /tmp/run1.txt
+          cargo run --quiet --bin ptc -- demo > /tmp/run2.txt
           diff /tmp/run1.txt /tmp/run2.txt
 
       # domain is the pure core. If an async runtime, HTTP, SQL or a clock ever

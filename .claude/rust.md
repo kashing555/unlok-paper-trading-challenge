@@ -184,8 +184,8 @@ one place exhaustiveness is doing real work, and a wildcard silently disables it
 - **`thiserror` in libraries** (`domain`, `scoring`, `broker`, `engine`, `store`) — typed
   and matchable, so a caller can distinguish "rejected" from "broken".
 - **Binaries return `Box<dyn Error>` from `main`**, where the answer is a
-  message and a non-zero exit. `anyhow` was considered and declined: at two
-  small binaries it is a dependency that buys a prettier backtrace and nothing
+  message and a non-zero exit. `anyhow` was considered and declined: at one
+  small binary it is a dependency that buys a prettier backtrace and nothing
   else — `principles.md` §7's forwarding-layer test, applied to a crate.
 - **Distinguish a bug from an expected failure.** A rejected order is a
   `Result` — it is a normal outcome of a competition. A negative position is a
