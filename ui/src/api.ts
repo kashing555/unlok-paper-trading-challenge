@@ -1,4 +1,9 @@
-// Typed client for the Rust API.
+// Typed client for the Rust API — reads only.
+//
+// The cockpit observes; it never mutates. Every write goes through the one
+// interface (the API, via Swagger or curl), so this client has no POST in it —
+// a second write surface would be a second home for validation, and a second
+// place to drift.
 //
 // The shapes here mirror `crates/api/src/dto.rs`. Money and returns arrive as
 // decimal **strings** and are kept that way — parsing them into a JS `number`
@@ -112,12 +117,8 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
-  const res = await fetch(`/api${path}`, {
-    method,
-    headers: body === undefined ? {} : { 'content-type': 'application/json' },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  })
+async function request<T>(path: string): Promise<T> {
+  const res = await fetch(`/api${path}`)
 
   const text = await res.text()
   const json = text ? JSON.parse(text) : null
@@ -142,48 +143,17 @@ export interface InstrumentSpecView {
 }
 
 export const api = {
-  health: () => request<Record<string, unknown>>('GET', '/health'),
-  reset: () =>
-    request<{ status: string; instruments: number }>('POST', '/reset'),
-  instruments: () =>
-    request<{ instruments: InstrumentSpecView[] }>('GET', '/instruments'),
-  createInstrument: (symbol: string, tick: string, maxOrderQty?: number) =>
-    request<InstrumentSpecView>('POST', '/instruments', {
-      symbol,
-      tick,
-      ...(maxOrderQty !== undefined ? { maxOrderQty } : {}),
-    }),
-  removeInstrument: (symbol: string) => request('DELETE', `/instruments/${symbol}`),
-  marks: () => request<{ marks: { symbol: string; px: string }[] }>('GET', '/market/prices'),
-  participants: () => request<{ participants: string[] }>('GET', '/participants'),
-  createParticipant: (id: string, startingCash: string) =>
-    request('POST', '/participants', { id, startingCash }),
-  portfolio: (id: string) => request<PortfolioView>('GET', `/participants/${id}/portfolio`),
-  orders: () => request<{ orders: OrderView[] }>('GET', '/orders'),
-  executions: () => request<{ executions: TapeRow[] }>('GET', '/executions'),
-  events: (after: number) =>
-    request<{ events: JournalRow[] }>('GET', `/events?after=${after}`),
-  submitOrder: (o: {
-    participant: string
-    symbol: string
-    side: string
-    qty: number
-    limitPx: string
-  }) => request<OrderView>('POST', '/orders', o),
-  cancelOrder: (id: number) => request<OrderView>('DELETE', `/orders/${id}`),
-  replaceOrder: (id: number, qty: number, limitPx: string) =>
-    request('PUT', `/orders/${id}`, { qty, limitPx }),
-  execute: (clientOrderId: number, qty?: number, px?: string) =>
-    request<OrderView>('POST', '/broker/executions', {
-      clientOrderId,
-      ...(qty !== undefined && px !== undefined ? { qty, px } : {}),
-    }),
-  updateMarks: (marks: { symbol: string; px: string }[]) =>
-    request('POST', '/market/prices', marks),
-  closeDay: (day: string) => request<LeaderboardView>('POST', `/days/${day}/close`),
-  days: () => request<{ closedDays: string[] }>('GET', '/days'),
-  leaderboard: (day: string) => request<LeaderboardView>('GET', `/days/${day}/leaderboard`),
-  ladder: () => request<LadderView>('GET', '/ladder'),
+  health: () => request<Record<string, unknown>>('/health'),
+  instruments: () => request<{ instruments: InstrumentSpecView[] }>('/instruments'),
+  marks: () => request<{ marks: { symbol: string; px: string }[] }>('/market/prices'),
+  participants: () => request<{ participants: string[] }>('/participants'),
+  portfolio: (id: string) => request<PortfolioView>(`/participants/${id}/portfolio`),
+  orders: () => request<{ orders: OrderView[] }>('/orders'),
+  executions: () => request<{ executions: TapeRow[] }>('/executions'),
+  events: (after: number) => request<{ events: JournalRow[] }>(`/events?after=${after}`),
+  days: () => request<{ closedDays: string[] }>('/days'),
+  leaderboard: (day: string) => request<LeaderboardView>(`/days/${day}/leaderboard`),
+  ladder: () => request<LadderView>('/ladder'),
 }
 
 /**

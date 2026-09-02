@@ -1,7 +1,6 @@
 import { defineStore } from 'pinia'
 import {
   api,
-  ApiError,
   type InstrumentSpecView,
   type LadderView,
   type LeaderboardView,
@@ -86,26 +85,6 @@ export const useCockpit = defineStore('cockpit', {
     async selectDay(day: string) {
       this.selectedDay = day
       this.board = await api.leaderboard(day)
-    },
-
-    /** Runs an action, surfacing an RFC 7807 problem as readable text. */
-    async attempt(fn: () => Promise<unknown>): Promise<boolean> {
-      try {
-        await fn()
-        this.lastError = ''
-        await this.refresh()
-        return true
-      } catch (e) {
-        if (e instanceof ApiError) {
-          const extra = Object.entries(e.extra)
-            .map(([k, v]) => `${k}=${v}`)
-            .join(' ')
-          this.lastError = `${e.status} ${e.detail}${extra ? ` · ${extra}` : ''}`
-        } else {
-          this.lastError = e instanceof Error ? e.message : String(e)
-        }
-        return false
-      }
     },
   },
 })
